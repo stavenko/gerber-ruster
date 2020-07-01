@@ -50,9 +50,9 @@ mod integration_test {
   static svg_folder: &str = "expected/";
   fn files_list() -> Vec<&'static str> { 
     vec! (
-    // "smokes/one-1",
-    // "smokes/one",
-    // "smokes/two",
+    "smokes/one-1",
+    "smokes/one",
+    "smokes/two",
     "smokes/three"
     )
   }
