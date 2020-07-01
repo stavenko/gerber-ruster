@@ -85,7 +85,7 @@ dependencies = [
 [[package]]
 name = "gerber_compare"
 version = "0.1.1"
-source = "git+https://github.com/stavenko/gerber-compare#568f6e5be70ef3c804c2d39e7c1bfe4ae349d6de"
+source = "git+https://github.com/stavenko/gerber-compare#b432607e2b1549553db7a1b34e15ab4817851d78"
 dependencies = [
  "png",
 ]
