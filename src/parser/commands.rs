@@ -19,13 +19,48 @@ pub enum Unit{
   Inches
 }
 
-#[derive(Debug, PartialEq)]
-pub struct NumberSpec {
-  pub integer: u8,
-  pub rational: u8
+impl Unit {
+  pub fn to_points(&self, distance: f32) -> f32 {
+    match self {
+      Unit::Inches => 72.0 * distance,
+      Unit::Millimeters => 72.0 * distance / 25.4
+    }
+  }
 }
 
-type Coordinates = [Option<i32>; 2];
+#[derive(Debug, PartialEq)]
+pub struct NumberSpec {
+  pub integer: usize,
+  pub rational: usize
+}
+
+impl NumberSpec {
+
+  pub fn parse(&self, s: String) -> f32 {
+    let divider = self.rational; 
+    let divider = divider as i32;
+    s.parse::<f32>().unwrap() * 10_f32.powi(-divider)
+  }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Coordinates {
+  pub x: Option<String>,
+  pub y: Option<String>,
+  pub i: Option<String>,
+  pub j: Option<String>
+}
+
+impl Coordinates {
+  fn new() -> Self {
+    Coordinates {
+      x: None,
+      y: None,
+      j: None,
+      i: None
+    }
+  }
+}
 
 #[derive(Debug, PartialEq)]
 pub struct FormatSpecification {
@@ -75,7 +110,6 @@ pub enum ApertureTemplatePrimitive {
   O(Rect),
   P(Polygon),
   M(String)
-
 }
 
 #[derive(Debug, PartialEq)]
@@ -97,6 +131,14 @@ pub enum ImagePolarity {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum Interpolation {
+  Linear,
+  MultiQuadrant,
+  SingleQuadrant,
+}
+
+
+#[derive(Debug, PartialEq)]
 pub enum GerberCommand {
   Stop,
   Operation(Operation),
@@ -105,18 +147,15 @@ pub enum GerberCommand {
   Unit(Unit),
   FormatSpecification(FormatSpecification),
   Comment(String),
-  LinearInterpolation,
+  Interpolation(Interpolation),
   ClockWiseArc,
   CounterClockWiseArc,
-  SingleQuadrantInterpolation,
-  MultiQuadrantInterpolation,
   StartContourMode,
   FinishConrourMode,
   ApplyAperture(String),
   LevelPolarity(Polarity),
   ImagePolarity(ImagePolarity),
   ImageName(String)
-
 }
 
 #[derive(Debug, PartialEq)]
@@ -143,7 +182,7 @@ impl<I> ParseError<I> for GerberError<I> {
 }
 
 fn spaces(i: &str) -> IResult<&str, &str, GerberError<&str>> {
-  let chars = " \n\t";
+  let chars = " \n\t\r";
   take_while(move |c| chars.contains(c))(i)
 }
 
@@ -161,11 +200,11 @@ fn g_command(i: & str) -> IResult<& str, GerberCommand, GerberError<&str>> {
   let (i, _) = tag("G")(i)?;
   let (rest, number) = take(2usize)(i)?;
   match number {
-    "01" => Ok((rest, GerberCommand::LinearInterpolation)),
+    "01" => Ok((rest, GerberCommand::Interpolation(Interpolation::Linear))),
     "02" => Ok((rest, GerberCommand::ClockWiseArc)),
     "03" => Ok((rest, GerberCommand::CounterClockWiseArc)),
-    "74" => Ok((rest, GerberCommand::SingleQuadrantInterpolation)),
-    "75" => Ok((rest, GerberCommand::MultiQuadrantInterpolation)),
+    "74" => Ok((rest, GerberCommand::Interpolation(Interpolation::SingleQuadrant))),
+    "75" => Ok((rest, GerberCommand::Interpolation(Interpolation::MultiQuadrant))),
     "36" => Ok((rest, GerberCommand::StartContourMode)),
     "37" => Ok((rest, GerberCommand::FinishConrourMode)),
     _ => Err(Error(GerberError::IncorrectGCode))
@@ -258,8 +297,13 @@ fn image_polarity(i: &str) -> IResult<&str, GerberCommand, GerberError<&str>> {
     s => Err(Error(GerberError::UnexpectedPolarity(String::from(s))))
   }
 }
+
 fn is_digit(c: char) -> bool {
   c.is_digit(10)
+}
+
+fn is_digit_with_sign(c: char) -> bool {
+  c.is_digit(10) || c == '-'
 }
 
 fn op_code(i: &str) -> IResult<&str, OperationType, GerberError<&str>> {
@@ -273,30 +317,19 @@ fn op_code(i: &str) -> IResult<&str, OperationType, GerberError<&str>> {
   }
 }
 fn coordinate_data(i: &str) -> IResult<&str, Coordinates, GerberError<&str>> {
-  let mut iter = iterator(i, pair(one_of("XY"), take_while(is_digit)));
-  let mut coords: Coordinates = [None, None];
+  let mut iter = iterator(i, pair(one_of("XYIJ"), take_while(is_digit_with_sign)));
+  let mut coords: Coordinates = Coordinates::new();
   for (coord, digit) in iter.collect::<Vec<_>>() {
     match coord {
-      'X' => {coords[0] = Some(String::from(digit).parse().unwrap());},
-      'Y' => {coords[1] = Some(String::from(digit).parse().unwrap());}
+      'X' => {coords.x = Some(String::from(digit));},
+      'Y' => {coords.y = Some(String::from(digit));}
+      'I' => {coords.i = Some(String::from(digit));},
+      'J' => {coords.j = Some(String::from(digit));}
       _ => {}
     }
   }
 
   let (rest, _) = iter.finish()?;
-
-
-
-  /*
-  let (rest, (x, y)) = pair(
-    preceded(tag("X"), take_while(is_digit)),
-    preceded(tag("Y"), take_while(is_digit))
-  )(i)?;
-  */
-
-  // let x = String::from(x).parse::<i32>().unwrap();
-  // let y = String::from(y).parse::<i32>().unwrap();
-
   Ok((rest, coords))
 }
 
@@ -319,13 +352,13 @@ fn coordinate_spec(i: &str) -> IResult<&str, [NumberSpec; 2], GerberError<&str>>
 
   Ok((rest, [
       NumberSpec{
-        integer: String::from(x_int).parse::<u8>().unwrap(),
-        rational: String::from(x_ratio).parse::<u8>().unwrap()
+        integer: String::from(x_int).parse::<usize>().unwrap(),
+        rational: String::from(x_ratio).parse::<usize>().unwrap()
       }
       , 
       NumberSpec{
-        integer: String::from(y_int).parse::<u8>().unwrap(),
-        rational: String::from(y_ratio).parse::<u8>().unwrap()
+        integer: String::from(y_int).parse::<usize>().unwrap(),
+        rational: String::from(y_ratio).parse::<usize>().unwrap()
       }
 ]))
 }
@@ -405,6 +438,22 @@ fn aperture_definition(i: &str) -> IResult<&str, GerberCommand, GerberError<&str
 }
 
 
+#[test]
+fn operation_command() {
+  let cmd =  "X0Y0I-5000D01*";
+  let (_, result) = operation(cmd).unwrap();
+
+  assert_eq!(result, GerberCommand::Operation(Operation{
+    op_type: OperationType::Interpolation,
+    coords: Coordinates {
+      x: Some(String::from("0")),
+      y: Some(String::from("0")),
+      i: Some(String::from("-5000")),
+      j: None
+    }
+  }));
+
+}
 
 #[test]
 fn test_format() {
@@ -461,7 +510,7 @@ fn read_simple_command() {
   let code = "G75*\n";
   let (_, comment) = simple_command(comment).unwrap();
   let (_, code) = simple_command(code).unwrap();
-  assert_eq!(code, GerberCommand::MultiQuadrantInterpolation);
+  assert_eq!(code, GerberCommand::Interpolation(Interpolation::MultiQuadrant));
   assert_eq!(comment, GerberCommand::Comment(String::from("EAGLE Gerber RS-274X export")));
 }
 
@@ -470,7 +519,7 @@ fn read_simple_command() {
 fn read_g01() {
   let input = "G01*";
   let (_, item) = g_command(input).unwrap();
-  assert_eq!(item, GerberCommand::LinearInterpolation);
+  assert_eq!(item, GerberCommand::Interpolation(Interpolation::Linear));
 }
 
 #[test]
@@ -491,13 +540,13 @@ fn read_g03() {
 fn read_g74() {
   let input = "G74*";
   let (_, item) = g_command(input).unwrap();
-  assert_eq!(item, GerberCommand::SingleQuadrantInterpolation);
+  assert_eq!(item, GerberCommand::Interpolation(Interpolation::SingleQuadrant));
 }
 #[test]
 fn read_g75() {
   let input = "G75*";
   let (_, item) = g_command(input).unwrap();
-  assert_eq!(item, GerberCommand::MultiQuadrantInterpolation);
+  assert_eq!(item, GerberCommand::Interpolation(Interpolation::MultiQuadrant));
 }
 #[test]
 fn read_unit_command() {
@@ -534,4 +583,26 @@ fn read_aperture() {
   }));
 }
 
+#[test]
+fn test_split() {
+  let str_ = String::from("12345");
+  let ns = NumberSpec{ integer: 5, rational: 4};
+
+  assert_eq!(ns.parse(str_), 1.2345f32);
+
+}
+
+#[test]
+fn number_spec() {
+  let ns = NumberSpec{
+    integer: 3,
+    rational:4
+  };
+
+  assert_eq!((ns.parse(String::from("50000"))- 5.0).abs() < f32::EPSILON, true);
+  assert_eq!((ns.parse(String::from("5000")) - 0.5).abs() < f32::EPSILON, true);
+  assert_eq!((ns.parse(String::from("500")) - 0.05).abs() < f32::EPSILON, true);
+  assert_eq!((ns.parse(String::from("50")) - 0.005).abs() < f32::EPSILON, true);
+  assert_eq!((ns.parse(String::from("1")) - 0.0001).abs() < f32::EPSILON, true);
+}
 

@@ -8,6 +8,7 @@ use nom::{
 pub struct GerberReader<'a> {
   pointer: &'a str
 }
+
 impl<'a> GerberReader<'a> {
   pub fn new(input: &'a str) -> Self {
     GerberReader {
@@ -15,11 +16,12 @@ impl<'a> GerberReader<'a> {
     }
   }
 }
+
 type ParseResult<I> = Result<GerberCommand, GerberError<I>>;
 
 impl<'a> Iterator for GerberReader<'a> {
   type Item = ParseResult<&'a str>;
-  fn next(&mut self) -> Option<Self::Item> {
+  fn next<'b>(&mut self) -> Option<Self::Item> {
     if self.pointer == "" {
       None
     } else {
@@ -33,17 +35,14 @@ impl<'a> Iterator for GerberReader<'a> {
           }
         },
         Err(Error(err)) => {
-          println!("emit error {:?}", err);
           Some(Err(err))
         },
 
-        Err(Incomplete(err)) => {
-          println!("emit error 1 {:?}", err);
+        Err(Incomplete(_err)) => {
           Some(Err(GerberError::Incomplete))
         },
 
-        Err(Failure(err)) => {
-          println!("emit error 2 {:?}", err);
+        Err(Failure(_err)) => {
           Some(Err(GerberError::Faulure))
         }
       }
@@ -66,7 +65,12 @@ G01*
 
   assert_eq!(result[0], GerberCommand::ApertureMacro(String::from(r"OC8*
 5,1,8,0,0,1.08239X$1,22.5*")));
-  assert_eq!(result[2], GerberCommand::ApertureDefinition(Aperture { name: String::from("10"), template: ApertureTemplatePrimitive::R(Rect { width: 0.8, height: -1.2, hole_diameter: None }) }));
+  assert_eq!(result[2], GerberCommand::ApertureDefinition(Aperture { 
+    name: String::from("10"), 
+    template: ApertureTemplatePrimitive::R(Rect { 
+      width: 0.8, 
+      height: -1.2, 
+      hole_diameter: None }) }));
   assert_eq!(result[3], GerberCommand::ApertureDefinition(Aperture { name: String::from("11"), template: ApertureTemplatePrimitive::C(Circle { diameter: 0.1524, hole_diameter: None }) }));
 }
 
@@ -77,7 +81,7 @@ fn read_several_commands() {
   let c1 = iter.next().unwrap().unwrap();
   let c2 = iter.next().unwrap().unwrap();
   let c3 = iter.next().unwrap().unwrap();
-  assert_eq!(c1, GerberCommand::LinearInterpolation);
+  assert_eq!(c1, GerberCommand::Interpolation(Interpolation::Linear));
   assert_eq!(c2, GerberCommand::ClockWiseArc);
   assert_eq!(c3, GerberCommand::CounterClockWiseArc);
 }
@@ -124,13 +128,13 @@ fn read_operation() {
   assert_eq!(c1, GerberCommand::Operation(
     Operation { 
       op_type: OperationType::Move, 
-      coords: [Some(562500), Some(558800)] 
+      coords: Coordinates {x:Some(String::from("562500")), y:Some(String::from("558800")), i: None, j: None} 
   }));
   assert_eq!(c2, GerberCommand::Operation(Operation { 
     op_type: OperationType::Interpolation, 
-    coords: [Some(546100), None] 
+    coords: Coordinates{x:Some(String::from("546100")), y:None, i:None, j:None}
   }));
   assert_eq!(c3, GerberCommand::Operation( Operation { 
-    op_type: OperationType::Flash, coords: [None, Some(546100)] 
+    op_type: OperationType::Flash, coords: Coordinates{x:None, y:Some(String::from("546100")), i: None, j: None}
   }));
 }
