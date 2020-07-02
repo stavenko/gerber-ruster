@@ -15,7 +15,14 @@ pub struct Line {
 
 impl Line {
   pub fn new(to: Vec2, from: Vec2) -> Self{
-    let direction = (to - from).normalize();
+    let direction = {
+      let d = (to - from).normalize();
+      if d.x.is_nan() || d.y.is_nan() {
+        Vec2::new(1.0, 0.0)
+      } else {
+        d
+      }
+    };
     let normal = Rotation2::new(PI / 2.0) * direction;
     Line {
       to, from, normal, direction

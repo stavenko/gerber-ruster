@@ -118,11 +118,9 @@ impl IntersectorEnum {
     let point2 = left.center + s * u - t * v;
     if IntersectorEnum::is_on_arc(left, &point1) && IntersectorEnum::is_on_arc(other, &point1)
     {
-      println!("return first");
       point1
     } else if IntersectorEnum::is_on_arc(left, &point2) && IntersectorEnum::is_on_arc(other, &point2)
     {
-      println!("return second \n\none arc{:?} \n\n second arc {:?} \n\npoint{:?}", left, other, point2);
       point2
     } else {
       panic!("none of circles intersection points is not on both arcs")

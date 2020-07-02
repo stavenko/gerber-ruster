@@ -74,12 +74,10 @@ impl SvgComposer {
     let wh = self.bb.max - self.bb.min;
     let left = -self.unit.to_points(self.bb.min.x);
     let top = self.unit.to_points(wh.y + self.bb.min.y);
-    println!("result bbpx{:?}", self.bb);
     let matrix = format!("matrix({},0,0,-{}, {}, {})", one_unit, one_unit, left, top);
     let mut items: Vec<String> = svg_path.iter().map(|p| p.0.serialize()).collect();
     items.insert(0, svg_path.first().unwrap().0.initial());
 
-    println!("Result: {:?}", items);
 
     format!("<path d=\"{}\" fill=\"black\" stroke=\"red\" stroke-width=\"0.02\" transform=\"{}\"/>", items.join(" "), matrix)
   }

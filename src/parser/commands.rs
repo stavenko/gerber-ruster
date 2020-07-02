@@ -341,7 +341,6 @@ fn operation(i: &str) -> IResult<&str, GerberCommand, GerberError<&str>> {
     op_type,
     coords
   })))
-
 }
 
 fn coordinate_spec(i: &str) -> IResult<&str, [NumberSpec; 2], GerberError<&str>> {

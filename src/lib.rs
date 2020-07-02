@@ -24,14 +24,12 @@ mod test {
 
 #[cfg(test)]
 mod integration_test {
-  extern crate gerber_compare;
   use std::path::Path;
   use std::fs::File;
   use std::io::BufReader;
   use std::io::prelude::*;
   use crate::parser;
   use crate::plotter;
-  use gerber_compare::*;
   use crate::svg::SvgComposer;
 
 
@@ -50,10 +48,48 @@ mod integration_test {
   static svg_folder: &str = "expected/";
   fn files_list() -> Vec<&'static str> { 
     vec! (
+      /*
     "smokes/one-1",
     "smokes/one",
     "smokes/two",
-    "smokes/three"
+    "smokes/three",
+    "strokes/circle-tool-multi-segment",
+    "strokes/circle-tool-single-segment",
+    "strokes/circle-tool-zero-length",
+    "strokes/rect-tool-multi-segment",
+    "strokes/rect-tool-single-segment",
+    "strokes/rect-tool-zero-length",
+    "arc-strokes/single-quadrant-I-to-II",
+    "arc-strokes/single-quadrant-II-to-III",
+    "arc-strokes/single-quadrant-III-to-IV",
+    "arc-strokes/single-quadrant-IV-to-I",
+
+    "arc-strokes/multi-quadrant-I-to-II",
+    "arc-strokes/multi-quadrant-I-to-III",
+    "arc-strokes/multi-quadrant-I-to-IV",
+
+    "arc-strokes/multi-quadrant-II-to-III",
+    "arc-strokes/multi-quadrant-II-to-IV",
+    "arc-strokes/multi-quadrant-II-to-I",
+
+    "arc-strokes/multi-quadrant-III-to-IV",
+    "arc-strokes/multi-quadrant-III-to-II",
+    "arc-strokes/multi-quadrant-III-to-I",
+
+    "arc-strokes/multi-quadrant-IV-to-II",
+    "arc-strokes/multi-quadrant-IV-to-III",
+    "arc-strokes/multi-quadrant-IV-to-I",
+    "arc-strokes/zero-length",
+    "arc-strokes/full-circle",
+
+    */
+    "regions/region-with-arc-cut-in",
+    "regions/region-with-arcs",
+    "regions/region-with-cut-in-line",
+    "regions/region-with-lines",
+    /*
+    */
+    
     )
   }
 
@@ -95,8 +131,12 @@ mod integration_test {
 
           let composer = SvgComposer::new(result, unit);
           let result = composer.compose();
-
-          let is_almost_same = svg_is_same(result, &grb);
+          let file_name_to_save = root.join(svg_folder).join(format!("{}-result.svg", file));
+          println!("path to save {:?}", file_name_to_save);
+          if !file_name_to_save.exists() {
+            std::fs::create_dir_all(file_name_to_save.parent().unwrap()).unwrap();
+          }
+          File::create(file_name_to_save).map(move |mut f| f.write_all(result.as_bytes())).unwrap();
         },
         Err(e) => {
           println!("Error: {:?} ", e);

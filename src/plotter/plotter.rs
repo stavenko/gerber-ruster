@@ -41,6 +41,7 @@ struct RawPath {
   elements: Vec<RawPathElement>,
 }
 
+#[derive(Debug)]
 pub struct Path{ 
   pub(in super) tp: PathType,
   pub elements: Vec<Box<dyn StrokePathElement>>

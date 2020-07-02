@@ -84,7 +84,6 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
       PathType::Rect(w,h) => {
         let wh = Vec2::new(*w, *h);
         let rect_dir = RectDir::from_dir(self.get_direction_in_start_point(), self.get_normal_in_start_point());
-        println!("forward start {:?}", rect_dir);
 
         rect_dir.start(&wh)
       },
@@ -100,7 +99,6 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
       PathType::Rect(w,h) => {
         let wh = Vec2::new(*w, *h);
         let rect_dir = RectDir::from_dir(self.get_direction_in_end_point(), self.get_normal_in_end_poing());
-        println!("forward end {:?}", rect_dir);
         rect_dir.end(&wh)
       },
       _ => unreachable!()
@@ -266,7 +264,6 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
         let from = self.get_backward_end_point(&path_type);
         let to = prev.get_backward_start_point(&path_type);
 
-        println!("make arc {:?}", Arc::new_with_fixed_center(to, from, center, CircularDirection::CW));
 
 
         Box::new(Arc::new_with_fixed_center(to, from, center, CircularDirection::CW))
@@ -393,7 +390,6 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
             element.get_backward_end_point(&path_type)
           );
 
-          println!("lets check arcs with prev {:?}, {:?}", line_one, line_two);
 
           backward_end_point = line_one.get_intersector().intersects(line_two.get_intersector());
         }
@@ -412,7 +408,6 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
             element.get_backward_start_point(&path_type), 
             element.get_backward_end_point(&path_type)
           );
-          println!("lets check arcs with next \n\n{:?}, \n\n{:?}, \n\n{:?}", line_one, line_two, element);
 
           backward_start_point = line_two.get_intersector().intersects(line_one.get_intersector());
         }
@@ -421,8 +416,6 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
 
 
     if let Some(prev_node) = to_for_transition {
-      println!("------------make transition-----------------");
-
       result.push(self.create_backward_transition(&path_type, prev_node));
     };
 
@@ -436,6 +429,7 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
 
 pub fn to_stroke_around_path(path: Path) -> Path {
 
+  println!("-----------------process path ---------------------");
   let mut forward: Vec<Box<dyn StrokePathElement>> = Vec::new();
   let mut backward: Vec<Box<dyn StrokePathElement>> = Vec::new();
   let Path{tp, elements} = path;
@@ -443,20 +437,14 @@ pub fn to_stroke_around_path(path: Path) -> Path {
   for ix in 0..elements.len() {
     let prev = if ix == 0 { None } else {elements.get(ix - 1).map(|i| i.as_ref())};
     let current = &elements[ix];
+    println!("Elem -> {:?}", current);
     let next = elements.get(ix + 1).map(|i| i.as_ref());
     forward.extend(current.forward(&tp, prev, next));
     backward.extend(current.backward(&tp, prev, next));
   }
-  for item in forward.iter() {
-    println!("forward {:?}", item);
-    println!("--------------------------------------------------------");
-  }
-  for item in backward.iter() {
-    println!("backward {:?}", item);
-    println!("--------------------------------------------------------");
-  }
   backward.reverse();
   forward.extend(backward);
+  println!("-------------- end process path ---------------------");
 
 
   Path {

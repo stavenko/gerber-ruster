@@ -9,5 +9,3 @@ edition = "2018"
 [dependencies]
 nalgebra = '*'
 nom = { git= "https://github.com/Geal/nom", branch="master" }
-gerber_compare = { git= "https://github.com/stavenko/gerber-compare", branch="master" }
-

@@ -35,16 +35,28 @@ fn cmp(a: &f32, b: &f32) -> Ordering {
 impl Arc {
   fn arc_len(dir: &CircularDirection, center: &Vec2, from: &Vec2, to: &Vec2) -> f32 {
     use CircularDirection::*;
-    let basis_x = to - center;
-    let basis_y = Rotation2::new(PI) * basis_x;
-    let x = from.dot(&basis_x);
-    let y = from.dot(&basis_y);
-    let angle = y.atan2(x) * match dir {CW => -1.0, _ => 1.0};
+    let normal_in_start_point = (from - center).normalize();
+    let normal_in_end_point = (to - center).normalize();
+    let angle_length = Rotation2::rotation_between(
+      &normal_in_start_point,
+      &normal_in_end_point
+    ).angle();
 
-    if angle < 0.0 {
-      PI * 2.0 + angle
-    }else {
-      angle
+    match dir{
+      CCW => {
+        if angle_length < 0.0 {
+          2.0 * PI + angle_length
+        } else {
+          angle_length
+        }
+      },
+      CW => {
+        if angle_length < 0.0 {
+          angle_length.abs()
+        } else {
+          2.0 * PI - angle_length
+        }
+      }
     }
   }
 
@@ -53,7 +65,11 @@ impl Arc {
   }
 
   pub fn is_between(&self, v: Vec2) ->bool {
-    Arc::kross(v - self.from, self.to - self.from) <= 0.0
+    let kross = Self::kross(v - self.from, self.to - self.from); 
+    match self.direction {
+      CircularDirection::CCW => kross >= 0.0,
+      CircularDirection::CW  => kross <= 0.0
+    }
   }
 
 
@@ -73,27 +89,7 @@ impl Arc {
     let angle_start = normal_in_start_point.y.atan2(normal_in_start_point.x);
     let angle_end = normal_in_end_point.y.atan2(normal_in_end_point.x);
 
-    let angle_length = Rotation2::rotation_between(
-      &normal_in_start_point,
-      &normal_in_end_point
-    ).angle();
-
-    let angle_length = match direction {
-      CCW => {
-        if angle_length < 0.0 {
-          2.0 * PI + angle_length
-        } else {
-          angle_length
-        }
-      },
-      CW => {
-        if angle_length < 0.0 {
-          angle_length.abs()
-        } else {
-          2.0 * PI - angle_length
-        }
-      }
-    };
+    let angle_length = Self::arc_len(&direction, &center, &from, &to);
 
     Arc {
       to, 
@@ -127,17 +123,22 @@ impl Arc {
         from + Vec2::new(cx, -cy),
         from + Vec2::new(-cx, cy),
         from + Vec2::new(-cx, -cy)
-        ).into_iter().min_by(|c1, c2| {
-
-        let arc_len1 = Arc::arc_len(&direction, &c1, &from, &to);
-        let arc_len2 = Arc::arc_len(&direction, &c2, &from, &to);
-        cmp(&arc_len1, &arc_len2)
+        ).into_iter()
+        .filter(|center| (to-center).magnitude() - (from-center).magnitude() <= f32::EPSILON)
+        .inspect(|x| println!("inspect {:?} {:?}", (to-x).magnitude(), (from-x).magnitude()))
+        .min_by(|c1, c2| {
+          let arc_len1 = Arc::arc_len(&direction, &c1, &from, &to);
+          let arc_len2 = Arc::arc_len(&direction, &c2, &from, &to);
+          println!("\n\nc1 {:?}\n c2 {}\n a1: {}\n a2: {}\n", c1, c2, arc_len1, arc_len2);
+          cmp(&arc_len1, &arc_len2)
       }).unwrap()
     } else {
       let cx = i.map(|i| i + from.x).unwrap_or(from.x);
       let cy = j.map(|i| i + from.y).unwrap_or(from.y);
       Vec2::new(cx, cy)
     };
+
+    println!("\n\ncenter {:?}\n\ni: {:?}\n\nj: {:?}\n\n", center, i, j);
 
     Arc::new_with_fixed_center(to, from, center, direction )
 
@@ -164,10 +165,16 @@ impl PathElement for Arc {
     }
   }
   fn get_direction_in_start_point(&self) -> Vec2 {
-    self.direction_in_start_point
+    match self.direction {
+      CircularDirection::CW => self.direction_in_start_point,
+      CircularDirection::CCW => -self.direction_in_start_point
+    }
   }
   fn get_direction_in_end_point(&self) -> Vec2 {
-    self.direction_in_end_point
+    match self.direction {
+      CircularDirection::CW => self.direction_in_end_point,
+      CircularDirection::CCW => -self.direction_in_end_point
+    }
   }
 }
 
