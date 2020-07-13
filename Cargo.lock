@@ -122,7 +122,7 @@ dependencies = [
 [[package]]
 name = "nom"
 version = "6.0.0-alpha1"
-source = "git+https://github.com/Geal/nom#47fdc2dd94bd113f4a95dd0c29188616ab83e182"
+source = "git+https://github.com/Geal/nom?branch=master#1c34db743864455568ca9d30b2a90b26d94cca93"
 dependencies = [
  "lexical-core",
  "memchr",

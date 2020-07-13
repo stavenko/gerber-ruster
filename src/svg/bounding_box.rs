@@ -12,10 +12,9 @@ pub trait BoundingBoxTrait {
 
 impl BoundingBoxTrait for Line {
   fn get_bounding_box(&self) -> bounding_box_struct::BoundingBox {
-      let bb = BoundingBox::default();
-      let bb = bb.add(self.get_start_point());
-      let bb = bb.add(self.get_end_point());
-      bb
+    BoundingBox::default()
+      .add(self.get_start_point())
+      .add(self.get_end_point())
   }
 }
 impl BoundingBoxTrait for Arc {

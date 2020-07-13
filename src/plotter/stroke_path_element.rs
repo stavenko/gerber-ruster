@@ -1,8 +1,7 @@
 extern crate nalgebra as na;
 use na::{ Rotation2, Vector2 };
 use std::fmt::Debug;
-
-use super::{ 
+use super::{
   Arc,
   Line,
   CircularDirection,
@@ -12,18 +11,23 @@ use super::{
   Intersects, 
   PathType, 
   PathElement, 
-  Path
 };
 
-type Vec2 = Vector2<f32>;
+pub type Vec2 = Vector2<f32>;
 
 mod line_impl {
   use super::StrokePathElement;
-  use super::super::{  PathType, PathElement };
-  use super::{ CircularDirection, Arc, Line, Rotation2, Vec2, RectDir };
+  use super::{ Line, Vec2 };
 
 
   impl StrokePathElement for Line {
+    fn get_central_point(&self) -> Vec2 {
+      0.5 * (self.to + self.from)
+    }
+
+    fn has_point(&self, point: &Vec2) -> bool {
+      self.is_on_segment(point)
+    }
     fn create_forward_with(&self, forward_start_point: Vec2, forward_end_point: Vec2) -> Box<dyn StrokePathElement> {
       let copy = self.clone();
       Box::new(Line {
@@ -40,16 +44,30 @@ mod line_impl {
         normal: - self.normal
       })
     }
-
   }
 }
 
 mod arc_impl {
-  use super::StrokePathElement;
-  use super::super::{ Arc, PathType };
+  use super::{PathElement, StrokePathElement };
+  use super::super::{ Arc, CircularDirection };
   use super::Vec2;
+  use super::Rotation2;
 
   impl StrokePathElement for Arc {
+
+    fn get_central_point(&self) -> Vec2 {
+      let half_angle = self.angle_length / 2.0 * match self.direction {
+        CircularDirection::CW => -1.0,
+        CircularDirection::CCW => 1.0
+      };
+
+      let dir = Rotation2::new(half_angle) * self.get_normal_in_start_point();
+
+      dir * self.get_radius()
+    }
+    fn has_point(&self, point: &Vec2) -> bool {
+      self.is_on_arc(point)
+    }
 
     fn create_forward_with(&self, forward_start_point: Vec2, forward_end_point: Vec2) -> Box<dyn StrokePathElement> {
 
@@ -70,12 +88,18 @@ mod arc_impl {
           self.direction.clone().reverse()
           ))
     }
-
   }
-
 }
 
-pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Intersects + Debug  {
+pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Intersects + Debug {
+  fn has_point(&self, point: &Vec2) -> bool;
+  fn get_central_point(&self) -> Vec2;
+  fn split_by(&self, split_point: &Vec2) -> Vec<Box<dyn StrokePathElement>> {
+    let one = self.create_forward_with(self.get_start_point(), *split_point);
+    let two = self.create_forward_with(*split_point, self.get_end_point());
+    vec!(one, two)
+  }
+
   fn get_forward_start_point(&self, path_type: &PathType) -> Vec2 {
     self.get_start_point() + match path_type {
       PathType::Circle(radius) => {
@@ -264,8 +288,6 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
         let from = self.get_backward_end_point(&path_type);
         let to = prev.get_backward_start_point(&path_type);
 
-
-
         Box::new(Arc::new_with_fixed_center(to, from, center, CircularDirection::CW))
       },
       PathType::Rect(_w, _h) => {
@@ -301,7 +323,13 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
     }
   }
 
-  fn forward(&self, path_type: &PathType, prev: Option<&dyn StrokePathElement>, next: Option<&dyn StrokePathElement>) -> Vec<Box<dyn StrokePathElement>> {
+  fn forward(
+    &self, 
+    path_type: &PathType, 
+    prev: Option<&dyn StrokePathElement>, 
+    next: Option<&dyn StrokePathElement>, 
+    is_path_locked: bool
+  ) -> Vec<Box<dyn StrokePathElement>> {
     let mut result: Vec<Box<dyn StrokePathElement>> = Vec::new();
     let mut forward_start_point = self.get_forward_start_point(&path_type);
     let mut forward_end_point = self.get_forward_end_point(&path_type);
@@ -324,7 +352,11 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
             element.get_forward_end_point(&path_type)
             );
 
-          forward_start_point = line_two.get_intersector().intersects(line_one.get_intersector());
+          if let Some(pt) = line_two.get_intersector().intersects(line_one.get_intersector()) {
+            forward_start_point = pt;
+          }else {
+            panic!("Cannot find intersecttion, but we should!");
+          }
         }
       }
     }
@@ -346,12 +378,17 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
             element.get_forward_end_point(&path_type)
             );
 
-          forward_end_point = line_one.get_intersector().intersects(line_two.get_intersector());
+          if let Some(pt) = line_one.get_intersector().intersects(line_two.get_intersector()) {
+            forward_end_point = pt;
+          }else {
+            panic!("Cannot find intersecttion, but we should!");
+          }
+
         }
       }
     }
 
-    if needs_start_cap {
+    if needs_end_cap && !is_path_locked{
       for p in self.create_starting_cap(&path_type).into_iter() {
         result.push(p);
       }
@@ -363,14 +400,20 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
       result.push(self.create_forward_transition(&path_type, next_element));
     }
 
-    if needs_end_cap {
+    if needs_end_cap && !is_path_locked{
       result.extend(self.create_ending_cap(&path_type));
     }
 
     result
   }
 
-  fn backward(&self, path_type: &PathType, prev: Option<&dyn StrokePathElement>, next: Option<&dyn StrokePathElement>) -> Vec<Box<dyn StrokePathElement>> {
+  fn backward(
+    &self, 
+    path_type: &PathType, 
+    prev: Option<&dyn StrokePathElement>, 
+    next: Option<&dyn StrokePathElement>, 
+    is_path_locked: bool
+  ) -> Vec<Box<dyn StrokePathElement>> {
     let mut result: Vec<Box<dyn StrokePathElement>> = Vec::new();
     let mut backward_start_point = self.get_backward_start_point(&path_type);
     let mut backward_end_point = self.get_backward_end_point(&path_type);
@@ -391,7 +434,12 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
           );
 
 
-          backward_end_point = line_one.get_intersector().intersects(line_two.get_intersector());
+          if let Some(pt) = line_one.get_intersector().intersects(line_two.get_intersector()) {
+            backward_end_point = pt;
+          }else {
+            panic!("Cannot find intersecttion, but we should!");
+          }
+
         }
       }
     }
@@ -409,7 +457,11 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
             element.get_backward_end_point(&path_type)
           );
 
-          backward_start_point = line_two.get_intersector().intersects(line_one.get_intersector());
+          if let Some(pt) = line_two.get_intersector().intersects(line_one.get_intersector()){
+            backward_start_point = pt;
+          }else {
+            panic!("Cannot find intersecttion, but we should!");
+          }
         }
       }
     }
@@ -425,30 +477,3 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
   }
 }
 
-
-
-pub fn to_stroke_around_path(path: Path) -> Path {
-
-  println!("-----------------process path ---------------------");
-  let mut forward: Vec<Box<dyn StrokePathElement>> = Vec::new();
-  let mut backward: Vec<Box<dyn StrokePathElement>> = Vec::new();
-  let Path{tp, elements} = path;
-
-  for ix in 0..elements.len() {
-    let prev = if ix == 0 { None } else {elements.get(ix - 1).map(|i| i.as_ref())};
-    let current = &elements[ix];
-    println!("Elem -> {:?}", current);
-    let next = elements.get(ix + 1).map(|i| i.as_ref());
-    forward.extend(current.forward(&tp, prev, next));
-    backward.extend(current.backward(&tp, prev, next));
-  }
-  backward.reverse();
-  forward.extend(backward);
-  println!("-------------- end process path ---------------------");
-
-
-  Path {
-    tp,
-    elements: forward
-  }
-}

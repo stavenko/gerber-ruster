@@ -2,6 +2,8 @@ pub mod parser;
 mod plotter;
 mod svg;
 
+pub use svg::SvgComposer;
+
 #[cfg(test)]
 mod test {
   use crate::parser;
@@ -11,14 +13,14 @@ mod test {
     let contents = include_str!("../test_files/simple.gbr");
     let reader = parser::GerberReader::new(contents);
     let commands = reader.collect::<Vec<_>>();
-    assert_eq!(commands.len(), 303);
+    assert_eq!(commands.len(), 304);
   }
   #[test]
   fn read_whole_big_file() {
     let contents = include_str!("../test_files/hard_one.gbr");
     let reader = parser::GerberReader::new(contents);
     let commands = reader.collect::<Vec<_>>();
-    assert_eq!(commands.len(), 5689);
+    assert_eq!(commands.len(), 5690);
   }
 }
 
@@ -43,9 +45,9 @@ mod integration_test {
     }
   }
 
-  static rootDir: &str = "./test-visual";
-  static gerber_folder: &str = "gerber";
-  static svg_folder: &str = "expected/";
+  static ROOT_DIR: &str = "./test-visual";
+  static GERBER_FOLDER: &str = "gerber";
+  static SVG_FOLDER: &str = "expected/";
   fn files_list() -> Vec<&'static str> { 
     vec! (
       /*
@@ -82,12 +84,15 @@ mod integration_test {
     "arc-strokes/zero-length",
     "arc-strokes/full-circle",
 
-    */
+      "real-world/simple",
+      "real-world/hard_one",
     "regions/region-with-arc-cut-in",
     "regions/region-with-arcs",
     "regions/region-with-cut-in-line",
+    */
     "regions/region-with-lines",
     /*
+    "regions/shitty-region-with-lines",
     */
     
     )
@@ -96,9 +101,8 @@ mod integration_test {
 
   #[test]
   fn run_through() {
-
-    let root = Path::new(rootDir);
-    let grb_path = root.join(gerber_folder);
+    let root = Path::new(ROOT_DIR);
+    let grb_path = root.join(GERBER_FOLDER);
 
     for file in files_list().into_iter().map(String::from) {
       let grb = grb_path.join(format!("{}.gbr", file));
@@ -107,7 +111,7 @@ mod integration_test {
           let file_content ={ 
             let mut content = String::new();
             let mut reader = BufReader::new(grb_file);
-            reader.read_to_string(&mut content); 
+            reader.read_to_string(&mut content).unwrap(); 
             content
           };
           let (result, unit) = {
@@ -116,7 +120,8 @@ mod integration_test {
             {
               for parse_result in &mut parser {
                 match parse_result {
-                  Ok(command) => { plotter.consume(command); },
+                  Ok(parser::Cmd::One(command)) => { plotter.consume(command); },
+                  Ok(parser::Cmd::Many(commands)) => { for c in commands {plotter.consume(c);}; },
                   Err(e) => {
                     println!("error occured {:?}", e);
                     panic!("Error in file");
@@ -131,12 +136,12 @@ mod integration_test {
 
           let composer = SvgComposer::new(result, unit);
           let result = composer.compose();
-          let file_name_to_save = root.join(svg_folder).join(format!("{}-result.svg", file));
+          let file_name_to_save = root.join(SVG_FOLDER).join(format!("{}-result.svg", file));
           println!("path to save {:?}", file_name_to_save);
           if !file_name_to_save.exists() {
             std::fs::create_dir_all(file_name_to_save.parent().unwrap()).unwrap();
           }
-          File::create(file_name_to_save).map(move |mut f| f.write_all(result.as_bytes())).unwrap();
+          File::create(file_name_to_save).map(move |mut f| f.write_all(result.as_bytes())).unwrap().unwrap();
         },
         Err(e) => {
           println!("Error: {:?} ", e);

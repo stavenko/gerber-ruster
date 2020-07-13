@@ -1,5 +1,5 @@
-use crate::plotter::{ Path, AlgebraicPathElement };
-use crate::parser::{ Unit };
+use crate::plotter::{ Path, Region, AlgebraicPathElement };
+use crate::parser::{ Unit, Polarity };
 use super::bounding_box::*;
 use super::serializable::*;
 
@@ -14,7 +14,10 @@ impl SvgElement {
   }
 }
 
-type SvgPath = Vec<SvgElement>;
+struct SvgPath {
+  polarity: Polarity,
+  elements: Vec<SvgElement>
+}
 
 pub struct SvgComposer {
   paths: Vec<SvgPath>,
@@ -23,13 +26,35 @@ pub struct SvgComposer {
 }
 
 impl SvgComposer {
-  pub fn new (paths: Vec<Path>, unit: Unit) -> Self {
+  fn region_to_svg_paths(region: Region) -> Vec<SvgPath> {
+    let mut polarity = region.starting_polirity;
+
+    region.paths.into_iter().map(|path| {
+      let svg_path: Vec<SvgElement> = path.elements.into_iter().map(|item| {
+        SvgElement::new(item.algebraic())
+      }).collect();
+
+      SvgPath {
+        polarity: polarity.switch(),
+        elements: svg_path
+      }
+    }).collect()
+  }
+  pub fn new (regions: Vec<Region>, unit: Unit) -> Self {
+    println!("REGs: {}", regions.len());
+    let paths = regions.into_iter()
+      .map(|r| Self::region_to_svg_paths(r))
+      .flatten()
+      .collect::<Vec<SvgPath>>();
+
+    /*
     let paths = paths.into_iter().map(|path| {
       let svg_path: SvgPath = path.elements.into_iter().map(|item| {
         SvgElement::new(item.algebraic())
       }).collect();
       svg_path
     }).collect();
+    */
 
     SvgComposer{ bb: BoundingBox::default(), paths , unit }
   }
@@ -37,7 +62,7 @@ impl SvgComposer {
   fn calculate_bounding_box(&mut self) {
     for path in &self.paths {
       let mut bb = BoundingBox::default();
-      for item in path {
+      for item in &path.elements {
         bb += item.0.get_bounding_box();
       }
       self.bb += bb;
@@ -45,6 +70,7 @@ impl SvgComposer {
   }
 
   pub fn compose(mut self)->String {
+    println!("----------------------compose svg-------------------");
 
     self.calculate_bounding_box();
     let paths: Vec<String> = self.paths.iter().map(|path| {
@@ -65,18 +91,18 @@ impl SvgComposer {
         </svg>"#, 
         w, h, w, h,
         paths.join("\n"))
-    
   }
 
 
   fn serialize(&self, svg_path: &SvgPath) -> String {
+    println!("----------------------ser path-------------------");
     let one_unit = self.unit.to_points(1.0);
     let wh = self.bb.max - self.bb.min;
     let left = -self.unit.to_points(self.bb.min.x);
     let top = self.unit.to_points(wh.y + self.bb.min.y);
     let matrix = format!("matrix({},0,0,-{}, {}, {})", one_unit, one_unit, left, top);
-    let mut items: Vec<String> = svg_path.iter().map(|p| p.0.serialize()).collect();
-    items.insert(0, svg_path.first().unwrap().0.initial());
+    let mut items: Vec<String> = svg_path.elements.iter().map(|p| p.0.serialize()).collect();
+    items.insert(0, svg_path.elements.first().unwrap().0.initial());
 
 
     format!("<path d=\"{}\" fill=\"black\" stroke=\"red\" stroke-width=\"0.02\" transform=\"{}\"/>", items.join(" "), matrix)

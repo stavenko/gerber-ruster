@@ -1,7 +1,7 @@
 extern crate nalgebra as na;
 use std::f32::consts::PI;
 use super::path_element::*;
-use super::intersector::{ Ray, IntersectorEnum, Intersects };
+use super::intersector::{ Segment, IntersectorEnum, Intersects };
 use na::{Rotation2};
 
 
@@ -14,6 +14,14 @@ pub struct Line {
 }
 
 impl Line {
+  pub fn is_on_segment(&self, point: &Vec2) -> bool {
+    let related = point - self.from;
+    let dir = self.to - self.from;
+    let angle = Rotation2::rotation_between(&dir, &related).angle();
+    let projection = dir.dot(&related) / dir.magnitude();
+    angle.abs() <= f32::EPSILON  && projection >= 0.0 && projection <= 1.0 
+  }
+
   pub fn new(to: Vec2, from: Vec2) -> Self{
     let direction = {
       let d = (to - from).normalize();
@@ -54,9 +62,6 @@ impl PathElement for Line {
 
 impl Intersects for Line {
   fn get_intersector(&self) -> IntersectorEnum {
-    IntersectorEnum::Ray(Ray {
-      origin: self.from,
-      dir: self.to - self.from
-    })
+    IntersectorEnum::Segment(Segment::new(self.from, self.to))
   }
 }

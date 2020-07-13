@@ -5,8 +5,9 @@ use std::convert::From;
 use na::{ Vector2};
 use super::line::Line;
 use super::arc::Arc;
+use super::path::{ PathType, Path };
 use super::circular_direction::*;
-use super::stroke_path::{ StrokePathElement, to_stroke_around_path };
+use super::region::Region;
 
 type Vec2 = Vector2<f32>;
 
@@ -21,18 +22,12 @@ pub struct RawArc{
 
 #[derive(Clone, Debug, PartialEq)]
 enum RawPathElement {
-  SingleQuadrant(RawArc),
-  MultiQuadrant(RawArc),
-  Linear(Vec2),
-  Start(Vec2)
+  SingleQuadrant{ x: Option<f32>, y: Option<f32>, i: Option<f32>, j: Option<f32>, dir: CircularDirection},
+  MultiQuadrant{ x: Option<f32>, y: Option<f32>, i: Option<f32>, j: Option<f32>, dir: CircularDirection},
+  Linear{x: Option<f32>, y: Option<f32>},
+  Start{x: Option<f32>, y: Option<f32>}
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum PathType {
-  Rect(f32, f32),
-  Circle(f32),
-  Stroke
-}
 
 
 #[derive(Debug, PartialEq)]
@@ -41,24 +36,6 @@ struct RawPath {
   elements: Vec<RawPathElement>,
 }
 
-#[derive(Debug)]
-pub struct Path{ 
-  pub(in super) tp: PathType,
-  pub elements: Vec<Box<dyn StrokePathElement>>
-}
-
-impl Path {
-  fn new(tp: PathType) -> Path {
-    Path {
-      tp,
-      elements: Vec::new()
-    }
-  }
-
-  pub fn add(&mut self, element: Box<dyn StrokePathElement>) {
-    self.elements.push(element);
-  }
-}
 
 impl From<RawPath> for Path {
   fn from(path: RawPath) -> Self {
@@ -67,41 +44,51 @@ impl From<RawPath> for Path {
     let mut start_point: Option<Vec2> = None;
     for element in path.elements.into_iter() {
       match element {
-        Start(v) => {start_point.replace(v);},
-        Linear(v) => {
+        Start{x, y} => {start_point.replace(Vec2::new(x.unwrap_or(0.0), y.unwrap_or(0.0)));},
+        Linear{ x, y } => {
           match start_point { 
-            Some(from) => path_elements.add(Box::new(Line::new(v, from))),
+            Some(from) => {
+              let v = Vec2::new(x.unwrap_or(from.x), y.unwrap_or(from.y));
+              path_elements.add(Box::new(Line::new(v, from)));
+              start_point.replace(v);
+            },
             None => unreachable!("Must be start_point")
           };
-          start_point.replace(v);
         },
-        SingleQuadrant(RawArc{ to, dir, i, j }) => {
+        SingleQuadrant{x, y, i, j, dir} => {
           match start_point { 
-            Some(from) => path_elements.add(Box::new(Arc::new(
+            Some(from) => {
+              let to = Vec2::new(x.unwrap_or(from.x), y.unwrap_or(from.y));
+              start_point.replace(to);
+              path_elements.add(Box::new(Arc::new(
               to,
               from,
               i, 
               j,
               true,
               dir
-            ))),
+            )))
+            },
             None => unreachable!("Must be start_point")
           };
-          start_point.replace(to);
         },
-        MultiQuadrant(RawArc{ to, dir, i, j }) => {
+        MultiQuadrant{ x, y, i, j, dir } => {
           match start_point { 
-            Some(from) => path_elements.add(Box::new(Arc::new(
+            Some(from) => {
+              let to = Vec2::new(x.unwrap_or(from.x), y.unwrap_or(from.y));
+              start_point.replace(to);
+
+              path_elements.add(Box::new(Arc::new(
               to,
               from,
               i, 
               j,
               false,
               dir
-            ))),
+            )))
+            },
             None => unreachable!("Must be start_point")
           };
-          start_point.replace(to);
         }
       }
     };
@@ -109,14 +96,12 @@ impl From<RawPath> for Path {
   }
 }
 
+enum SelectedTool {
+  Aperture{ key: String, template: ApertureTemplatePrimitive },
+  Region
+}
 
 impl RawPath {
-  pub fn start_with(tp: PathType, start: Vec2) -> Self {
-    RawPath {
-      tp,
-      elements: vec!(RawPathElement::Start(start))
-    }
-  }
   pub fn start(tp: PathType,) -> Self {
     RawPath {
       tp,
@@ -129,18 +114,16 @@ impl RawPath {
   }
 }
 
-
-
-
 pub struct Plotter {
   unit: Option<Unit>,
   format: Option<FormatSpecification>,
   tools: HashMap<String, ApertureTemplatePrimitive>,
   interpolation: Option<Interpolation>,
   circular_direction: Option<CircularDirection>,
-  selected_aperture: Option<(String, ApertureTemplatePrimitive)>,
+  selected_aperture: Option<SelectedTool>,
   collected_paths: Vec<Path>,
-  current_path: Option<RawPath>
+  current_path: Option<RawPath>,
+  coords_accumulator: HashMap<Coordinate, f32>
 }
 
 impl Plotter {
@@ -154,7 +137,9 @@ impl Plotter {
       tools: HashMap::new(),
       collected_paths: Vec::new(),
       // bounding_box: BoundingBox::default(),
-      current_path: None
+      current_path: None,
+      coords_accumulator: HashMap::new()
+
     }
   }
 
@@ -174,13 +159,30 @@ impl Plotter {
     self.tools.insert(a.name, a.template);
   }
 
+  fn start_contour(&mut self) {
+    let last_ap = self.selected_aperture.replace(SelectedTool::Region);
+    if let Some(SelectedTool::Aperture{ key, template }) = last_ap {
+      self.tools.insert(key, template);
+    }
+    self.terminate_path();
+  }
+
+  fn finish_contour(&mut self) {
+    let last_ap = self.selected_aperture.take();
+    if let Some(SelectedTool::Aperture{ key, template }) = last_ap {
+      self.tools.insert(key, template);
+    }
+    self.terminate_path();
+  }
+
   fn apply_aperture(&mut self, name: String) {
     let aperture = self.tools.remove_entry(&name);
     match aperture {
       Some(ap) => {
-        let prev_aperture = self.selected_aperture.replace(ap);
-        if let Some(ap) = prev_aperture {
-          self.tools.insert(ap.0, ap.1);
+        self.terminate_path();
+        let prev_aperture = self.selected_aperture.replace(SelectedTool::Aperture{key: ap.0, template: ap.1 });
+        if let Some(SelectedTool::Aperture{key, template}) = prev_aperture {
+          self.tools.insert(key, template);
         }
       },
       None => {
@@ -193,9 +195,23 @@ impl Plotter {
     self.interpolation.replace(i);
   }
 
+  fn set_coordinate(&mut self, coord: Coordinate, value: String) {
+    let value = if let Some(FormatSpecification{x, ..})  = &self.format  {
+      x.parse(value)
+    } else {
+      panic!("Cannot parse coordinate - incorrect state - no coordinate format specified");
+    };
+    self.coords_accumulator.insert(coord, value);
+  }
+
+
   pub fn consume(&mut self, command: GerberCommand) {
+    println!("cmd: {:?}", command);
     match command {
+      GerberCommand::StartContourMode => self.start_contour(),
+      GerberCommand::FinishConrourMode => self.finish_contour(),
       GerberCommand::Unit(u) => self.set_unit(u),
+      GerberCommand::Coordinate{coord, value} => self.set_coordinate(coord, value),
       GerberCommand::FormatSpecification(f) => self.set_format(f),
       GerberCommand::ApertureDefinition(a) => self.add_aperture(a),
       GerberCommand::Interpolation(i) => self.set_interpolation(i),
@@ -207,11 +223,10 @@ impl Plotter {
     }
   }
 
-
-  fn operation(&mut self, op: Operation) {
-    match op.op_type {
-      OperationType::Interpolation => self.interpolation(op.coords),
-      OperationType::Move => self.start_new_path(Some(op.coords)),
+  fn operation(&mut self, op: OperationType) {
+    match op {
+      OperationType::Interpolation => self.interpolation(),
+      OperationType::Move => self.start_new_path(),
       _ => ()
     }
   }
@@ -220,52 +235,40 @@ impl Plotter {
     let ap = self.selected_aperture.as_ref();
     use ApertureTemplatePrimitive::*;
     match ap {
-      Some((_, ap)) => {
-        match ap {
+      Some(SelectedTool::Region) => {
+        PathType::Stroke
+      },
+      Some(SelectedTool::Aperture{template, ..}) => {
+        match template {
           R(r) => PathType::Rect(r.width, r.height),
           C(c) => PathType::Circle(c.diameter / 2.0),
           P(p) => PathType::Circle(p.outer_diameter/2.0),
           O(o) => PathType::Circle(o.width/2.0),
           M(_) => PathType::Circle(0.5)
-
         }
       },
       _ => panic!("Aperture is not selected")
     }
   }
 
-  fn path_width(&self) -> f32 {
-    let ap = self.selected_aperture.as_ref();
-    use ApertureTemplatePrimitive::*;
-    match ap {
-      Some((_, ap)) => {
-        match ap {
-          C(c) => c.diameter,
-          R(r) => r.width,
-          O(r) => r.width,
-          P(p) => p.outer_diameter,
-          _ => panic!("Cannot calculate width from aperture")
-        }
-      },
-      _ => panic!("Aperture is not selected")
-    }
-  }
+  fn start_new_path(&mut self) {
+    let x = self.coords_accumulator.remove(&Coordinate::X);
+    let y = self.coords_accumulator.remove(&Coordinate::Y);
 
-
-  fn start_new_path(&mut self, coords: Option<Coordinates>) {
+    println!("start path {:?}, {:?}", x, y);
     let ap = self.selected_aperture.as_ref();
     match ap {
-      Some((_, _)) => {
-        let coords = coords.map(|c| self.construct_coords(c))
-          .unwrap_or(Vec2::new(0.0, 0.0));
+      Some(_) => {
         let pt = self.path_type();
         let current_path = self.current_path.replace(
-          RawPath::start_with(pt, coords)
+          RawPath::start(pt)
         );
+        if let Some(path) = &mut self.current_path {
+          path.push(RawPathElement::Start{x, y})
+        }
 
-        match current_path {
-          Some(path) => self.collected_paths.push(path.into()),
-          None=> ()
+        if let Some(path) =  current_path {
+          self.collected_paths.push(path.into());
         };
       },
       _ => panic!("Aperture is not selected")
@@ -279,36 +282,27 @@ impl Plotter {
     }
   }
 
-  fn construct_coords(&mut self, coords: Coordinates) -> Vec2 {
-    match & self.format {
-      Some(FormatSpecification{x, ..}) => {
-        Vec2::new(
-          coords.x.map(|v| x.parse(v)).unwrap_or(0f32), 
-          coords.y.map(|v| x.parse(v)).unwrap_or(0f32)
-        )
-      },
-      None=> panic!("FormatSpecification is not in state on first place where it is needed")
-    }
-  }
+  fn interpolation(&mut self) {
+    let i = self.coords_accumulator.remove(&Coordinate::I);
+    let j = self.coords_accumulator.remove(&Coordinate::J);
+    let x = self.coords_accumulator.remove(&Coordinate::X);
+    let y = self.coords_accumulator.remove(&Coordinate::Y);
 
-
-  fn interpolation(&mut self, coords: Coordinates) {
     if self.current_path.is_none() {
-      self.start_new_path(None);
+      self.start_new_path();
     }
 
-    let i = coords.i.clone().map(|i| self.apply_format(i));
-    let j = coords.j.clone().map(|i| self.apply_format(i));
-    let direction = self.circular_direction.clone().unwrap_or(CircularDirection::CW);
-    let coords = self.construct_coords(coords);
+    let dir= self.circular_direction.clone().unwrap_or(CircularDirection::CW);
     let path_element = match self.interpolation {
-      Some(Interpolation::Linear) => RawPathElement::Linear(coords),
-      Some(Interpolation::SingleQuadrant) => RawPathElement::SingleQuadrant(RawArc{to:coords, dir:direction, i, j}),
-      Some(Interpolation::MultiQuadrant) => RawPathElement::MultiQuadrant(RawArc{to:coords, dir:direction, i, j}),
-      None => panic!(format!("Unknown interpolation type"))
+      Some(Interpolation::Linear) => RawPathElement::Linear{x, y},
+      Some(Interpolation::SingleQuadrant) => RawPathElement::SingleQuadrant{x, y, i, j, dir},
+      Some(Interpolation::MultiQuadrant) => RawPathElement::MultiQuadrant{x, y, i, j, dir},
+      None => panic!("Unknown interpolation type")
     };
 
-    self.current_path.as_mut().map(|path| path.push(path_element));
+    if let Some(path) = self.current_path.as_mut() {
+      path.push(path_element);
+    }
   }
 
 
@@ -320,15 +314,20 @@ impl Plotter {
   }
 
 
-
-  pub fn get_result(mut self) -> Vec<Path> {
-    match self.current_path.take() {
-      Some(path) => self.collected_paths.push(path.into()),
-      None => ()
+  fn terminate_path(&mut self) {
+    if let Some(path) = self.current_path.take() {
+      if !path.elements.is_empty() {
+        self.collected_paths.push(path.into());
+      }
     };
+  }
+
+  pub fn get_result(mut self) -> Vec<Region> {
+    self.terminate_path();
 
     self.collected_paths.into_iter()
-      .map(|p| to_stroke_around_path(p))
+      .map(|p| Region::from_raw_region(p))
+      .flatten()
       .collect()
   }
 }

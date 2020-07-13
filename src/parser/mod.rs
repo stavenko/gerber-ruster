@@ -3,13 +3,14 @@ mod reader;
 
 pub use reader::GerberReader;
 pub use commands::{ 
-  Operation, 
+  Polarity,
   OperationType, 
+  Cmd,
   Unit, 
   Aperture, 
+  Coordinate,
   ApertureTemplatePrimitive, 
   FormatSpecification, 
-  Coordinates, 
   GerberCommand, 
   Interpolation, 
   GerberError,
@@ -17,6 +18,5 @@ pub use commands::{
   Rect,
   Polygon,
   NumberSpec
-
 };
 

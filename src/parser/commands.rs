@@ -8,6 +8,8 @@ use nom::{
   character::{
     complete::{ char, one_of },
   },
+
+  multi::{ many_till },
   branch::{ alt },
   sequence::{ separated_pair, pair, preceded, delimited, terminated },
   error::{ ErrorKind, ParseError },
@@ -17,6 +19,12 @@ use nom::{
 pub enum Unit{
   Millimeters,
   Inches
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Cmd {
+  One(GerberCommand),
+  Many(Vec<GerberCommand>)
 }
 
 impl Unit {
@@ -44,25 +52,6 @@ impl NumberSpec {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Coordinates {
-  pub x: Option<String>,
-  pub y: Option<String>,
-  pub i: Option<String>,
-  pub j: Option<String>
-}
-
-impl Coordinates {
-  fn new() -> Self {
-    Coordinates {
-      x: None,
-      y: None,
-      j: None,
-      i: None
-    }
-  }
-}
-
-#[derive(Debug, PartialEq)]
 pub struct FormatSpecification {
   pub x: NumberSpec,
   pub y: NumberSpec
@@ -74,12 +63,6 @@ pub enum OperationType {
   Move,
   Interpolation,
   Flash
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Operation {
-  pub op_type: OperationType,
-  pub coords: Coordinates
 }
 
 #[derive(Debug, PartialEq)]
@@ -118,10 +101,22 @@ pub struct Aperture {
   pub template: ApertureTemplatePrimitive
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Polarity {
   Dark,
   Clear
+}
+
+
+impl Polarity {
+  pub fn switch(&mut self) -> Self {
+    let old = self.clone();
+    *self = match self {
+      Polarity::Clear => Polarity::Dark,
+      Polarity::Dark => Polarity::Clear
+    };
+    old
+  }
 }
 
 #[derive(Debug, PartialEq)]
@@ -130,6 +125,10 @@ pub enum ImagePolarity {
   Negative
 }
 
+#[derive(Debug, Hash, Eq, PartialEq)]
+pub enum Coordinate {
+  X, Y, I, J
+}
 #[derive(Debug, PartialEq)]
 pub enum Interpolation {
   Linear,
@@ -141,11 +140,12 @@ pub enum Interpolation {
 #[derive(Debug, PartialEq)]
 pub enum GerberCommand {
   Stop,
-  Operation(Operation),
+  Operation(OperationType),
   ApertureMacro(String), // just put it's contents in there for now
   ApertureDefinition(Aperture),
   Unit(Unit),
   FormatSpecification(FormatSpecification),
+  Coordinate{ coord: Coordinate, value: String },
   Comment(String),
   Interpolation(Interpolation),
   ClockWiseArc,
@@ -160,6 +160,7 @@ pub enum GerberCommand {
 
 #[derive(Debug, PartialEq)]
 pub enum GerberError<I>{
+  UnexpectedCoord(char),
   IncorrectOpCode(u8),
   IncorrectGCode,
   Incomplete,
@@ -219,24 +220,27 @@ fn d_command(i: & str) -> IResult<& str, GerberCommand, GerberError<&str>> {
   let (i, _) = tag("D")(i)?;
   let (rest, number) = take(2usize)(i)?;
   match number {
-    s => Ok((rest, GerberCommand::ApplyAperture(String::from(s))))
+   "01" => Ok((rest, GerberCommand::Operation(OperationType::Interpolation))),
+   "02" => Ok((rest, GerberCommand::Operation(OperationType::Move))),
+   "03" => Ok((rest, GerberCommand::Operation(OperationType::Flash))),
+   num => Ok((rest, GerberCommand::ApplyAperture(String::from(num))))
   }
 }
 
-pub fn simple_command(i: &str) -> IResult<&str, GerberCommand, GerberError<&str>> {
-  terminated(
+pub fn simple_command_block(i: &str) -> IResult<&str, Cmd, GerberError<&str>> {
+  let (rest, (commands, _end)) = many_till(
     alt(( 
       g_command, 
       d_command,
       comment,
-      operation,
+      coordinate_data,
       stop_command
-    )), 
-    delimited(spaces, char('*'), spaces)
-  )
-  (i)
+    )), delimited(spaces, char('*'), spaces)) 
+  (i)?;
+  Ok((rest, Cmd::Many(commands)))
 }
-pub fn extended_command(i: &str) -> IResult<&str, GerberCommand, GerberError<&str>> {
+
+pub fn extended_command(i: &str) -> IResult<&str, Cmd, GerberError<&str>> {
   terminated(
     alt(( 
       unit_command,
@@ -247,7 +251,7 @@ pub fn extended_command(i: &str) -> IResult<&str, GerberCommand, GerberError<&st
     )), 
     spaces
   )
-  (i)
+  (i).map(|(r, c)| (r, Cmd::One(c)))
 }
 
 fn unit_command(i: &str) -> IResult<&str, GerberCommand, GerberError<&str>> {
@@ -306,41 +310,16 @@ fn is_digit_with_sign(c: char) -> bool {
   c.is_digit(10) || c == '-'
 }
 
-fn op_code(i: &str) -> IResult<&str, OperationType, GerberError<&str>> {
-  let (rest, op) = preceded(tag("D"), take_while(is_digit))(i)?;
-  let op = String::from(op).parse::<u8>().unwrap();
-  match op {
-    1 => Ok((rest, OperationType::Interpolation)),
-    2 => Ok((rest, OperationType::Move)),
-    3 => Ok((rest, OperationType::Flash)),
-    x => Err(Error(GerberError::IncorrectOpCode(x)))
-  }
-}
-fn coordinate_data(i: &str) -> IResult<&str, Coordinates, GerberError<&str>> {
-  let mut iter = iterator(i, pair(one_of("XYIJ"), take_while(is_digit_with_sign)));
-  let mut coords: Coordinates = Coordinates::new();
-  for (coord, digit) in iter.collect::<Vec<_>>() {
-    match coord {
-      'X' => {coords.x = Some(String::from(digit));},
-      'Y' => {coords.y = Some(String::from(digit));}
-      'I' => {coords.i = Some(String::from(digit));},
-      'J' => {coords.j = Some(String::from(digit));}
-      _ => {}
-    }
-  }
-
-  let (rest, _) = iter.finish()?;
-  Ok((rest, coords))
-}
-
-
-fn operation(i: &str) -> IResult<&str, GerberCommand, GerberError<&str>> {
-  let(rest, (coords, op_type)) = pair(coordinate_data, op_code)(i)?;
-
-  Ok((rest, GerberCommand::Operation(Operation {
-    op_type,
-    coords
-  })))
+fn coordinate_data(i: &str) -> IResult<&str, GerberCommand, GerberError<&str>> {
+  let (rest, (coord, digit)) = pair(one_of("XYIJ"), take_while(is_digit_with_sign))(i)?;
+  let command = match coord {
+    'X' => Ok(GerberCommand::Coordinate{ coord: Coordinate::X, value: digit.into() }),
+    'Y' => Ok(GerberCommand::Coordinate{ coord: Coordinate::Y, value: digit.into() }),
+    'I' => Ok(GerberCommand::Coordinate{ coord: Coordinate::I, value: digit.into() }),
+    'J' => Ok(GerberCommand::Coordinate{ coord: Coordinate::J, value: digit.into() }),
+    x => Err(Error(GerberError::UnexpectedCoord(x)))
+  };
+  command.map(|cmd| (rest, cmd))
 }
 
 fn coordinate_spec(i: &str) -> IResult<&str, [NumberSpec; 2], GerberError<&str>> {
@@ -438,20 +417,19 @@ fn aperture_definition(i: &str) -> IResult<&str, GerberCommand, GerberError<&str
 
 
 #[test]
+fn coords_data_command() {
+  let cmd =  "X-500";
+  let (_, result) = coordinate_data(cmd).unwrap();
+
+  assert_eq!(result, GerberCommand::Coordinate{ coord: Coordinate::X, value: "-500".into()});
+}
+
+#[test]
 fn operation_command() {
-  let cmd =  "X0Y0I-5000D01*";
-  let (_, result) = operation(cmd).unwrap();
+  let cmd =  "D01*";
+  let (_, result) = d_command(cmd).unwrap();
 
-  assert_eq!(result, GerberCommand::Operation(Operation{
-    op_type: OperationType::Interpolation,
-    coords: Coordinates {
-      x: Some(String::from("0")),
-      y: Some(String::from("0")),
-      i: Some(String::from("-5000")),
-      j: None
-    }
-  }));
-
+  assert_eq!(result, GerberCommand::Operation(OperationType::Interpolation));
 }
 
 #[test]
@@ -507,12 +485,14 @@ fn read_aperture_def() {
 fn read_simple_command() {
   let comment = "G04 EAGLE Gerber RS-274X export*\n";
   let code = "G75*\n";
-  let (_, comment) = simple_command(comment).unwrap();
-  let (_, code) = simple_command(code).unwrap();
-  assert_eq!(code, GerberCommand::Interpolation(Interpolation::MultiQuadrant));
-  assert_eq!(comment, GerberCommand::Comment(String::from("EAGLE Gerber RS-274X export")));
-}
+  if let (_, Cmd::Many(commands)) = simple_command_block(comment).unwrap() {
+    if let (_, Cmd::Many(code)) = simple_command_block(code).unwrap() {
 
+    assert_eq!(code[0], GerberCommand::Interpolation(Interpolation::MultiQuadrant));
+    assert_eq!(commands[0], GerberCommand::Comment(String::from("EAGLE Gerber RS-274X export")));
+    }
+  }
+}
 
 #[test]
 fn read_g01() {
@@ -587,7 +567,7 @@ fn test_split() {
   let str_ = String::from("12345");
   let ns = NumberSpec{ integer: 5, rational: 4};
 
-  assert_eq!(ns.parse(str_), 1.2345f32);
+  assert!((ns.parse(str_) - 1.2345f32).abs() <= std::f32::EPSILON);
 
 }
 

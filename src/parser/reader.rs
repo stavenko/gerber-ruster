@@ -17,7 +17,9 @@ impl<'a> GerberReader<'a> {
   }
 }
 
-type ParseResult<I> = Result<GerberCommand, GerberError<I>>;
+
+
+type ParseResult<I> = Result<Cmd, GerberError<I>>;
 
 impl<'a> Iterator for GerberReader<'a> {
   type Item = ParseResult<&'a str>;
@@ -25,14 +27,10 @@ impl<'a> Iterator for GerberReader<'a> {
     if self.pointer == "" {
       None
     } else {
-      match alt((simple_command, extended_command))(self.pointer) {
+      match alt((simple_command_block, extended_command))(self.pointer) {
         Ok((rest, command)) => {
-          if command == GerberCommand::Stop {
-            None
-          } else {
-            self.pointer = rest;
-            Some(Ok(command))
-          }
+          self.pointer = rest;
+          Some(Ok(command))
         },
         Err(Error(err)) => {
           Some(Err(err))
@@ -61,51 +59,19 @@ G01*
 ";
 
   let iter = GerberReader::new(cmds);
-  let result = iter.map(|x| x.unwrap()).collect::<Vec<GerberCommand>>();
+  let result = iter.map(|x| x.unwrap()).collect::<Vec<Cmd>>();
 
-  assert_eq!(result[0], GerberCommand::ApertureMacro(String::from(r"OC8*
-5,1,8,0,0,1.08239X$1,22.5*")));
-  assert_eq!(result[2], GerberCommand::ApertureDefinition(Aperture { 
+  assert_eq!(result[0], Cmd::One(GerberCommand::ApertureMacro(String::from(r"OC8*
+5,1,8,0,0,1.08239X$1,22.5*"))));
+  assert_eq!(result[2], Cmd::One(GerberCommand::ApertureDefinition(Aperture { 
     name: String::from("10"), 
     template: ApertureTemplatePrimitive::R(Rect { 
       width: 0.8, 
       height: -1.2, 
-      hole_diameter: None }) }));
-  assert_eq!(result[3], GerberCommand::ApertureDefinition(Aperture { name: String::from("11"), template: ApertureTemplatePrimitive::C(Circle { diameter: 0.1524, hole_diameter: None }) }));
+      hole_diameter: None }) })));
+  assert_eq!(result[3], Cmd::One(GerberCommand::ApertureDefinition(Aperture { name: String::from("11"), template: ApertureTemplatePrimitive::C(Circle { diameter: 0.1524, hole_diameter: None }) })));
 }
 
-#[test]
-fn read_several_commands() {
-  let cmds = "G01*\nG02*\nG03*\n";
-  let mut iter = GerberReader::new(cmds);
-  let c1 = iter.next().unwrap().unwrap();
-  let c2 = iter.next().unwrap().unwrap();
-  let c3 = iter.next().unwrap().unwrap();
-  assert_eq!(c1, GerberCommand::Interpolation(Interpolation::Linear));
-  assert_eq!(c2, GerberCommand::ClockWiseArc);
-  assert_eq!(c3, GerberCommand::CounterClockWiseArc);
-}
-#[test]
-fn read_several_extended_commands() {
-  let cmds = "%MOMM*%\n%FSLAX21Y21*%\nG03*\n";
-
-  let mut iter = GerberReader::new(cmds);
-  let c1 = iter.next();
-  let c2 = iter.next();
-  let c3 = iter.next().unwrap().unwrap();
-  let c1 = c1.unwrap().unwrap();
-  let c2 = c2.unwrap().unwrap();
-  assert_eq!(c1, GerberCommand::Unit(Unit::Millimeters));
-  assert_eq!(c2, GerberCommand::FormatSpecification(FormatSpecification{
-    x: NumberSpec{
-      integer: 2, rational: 1
-    },
-    y: NumberSpec{
-      integer: 2, rational: 1
-    }
-  }));
-  assert_eq!(c3, GerberCommand::CounterClockWiseArc);
-}
 
 #[test]
 fn read_comment() {
@@ -113,28 +79,24 @@ fn read_comment() {
   let mut iter = GerberReader::new(comment);
   let r = iter.next();
   let r = r.unwrap().unwrap();
-  assert_eq!(r, GerberCommand::Comment(String::from("EAGLE Gerber RS-274X export")));
+  if let Cmd::Many(v) = r {
+    assert_eq!(v[0], GerberCommand::Comment(String::from("EAGLE Gerber RS-274X export")));
+  } else {
+    panic!("wrong");
+  }
+  
 }
 
 #[test]
 fn read_operation() {
-  let cmds = "X562500Y558800D02*\nX546100D01*\nY546100D03*";
+  let cmds = "X02Y01D03*";
   let mut iter = GerberReader::new(cmds);
-  let c1 = iter.next();
-  let c2 = iter.next();
-  let c3 = iter.next().unwrap().unwrap();
-  let c1 = c1.unwrap().unwrap();
-  let c2 = c2.unwrap().unwrap();
-  assert_eq!(c1, GerberCommand::Operation(
-    Operation { 
-      op_type: OperationType::Move, 
-      coords: Coordinates {x:Some(String::from("562500")), y:Some(String::from("558800")), i: None, j: None} 
-  }));
-  assert_eq!(c2, GerberCommand::Operation(Operation { 
-    op_type: OperationType::Interpolation, 
-    coords: Coordinates{x:Some(String::from("546100")), y:None, i:None, j:None}
-  }));
-  assert_eq!(c3, GerberCommand::Operation( Operation { 
-    op_type: OperationType::Flash, coords: Coordinates{x:None, y:Some(String::from("546100")), i: None, j: None}
-  }));
+  let c = iter.next().unwrap().unwrap();
+  if let Cmd::Many(v) = c {
+    assert_eq!(v[0], GerberCommand::Coordinate{coord: Coordinate::X, value: "02".into()});
+    assert_eq!(v[1], GerberCommand::Coordinate { coord: Coordinate::Y, value: "01".into() });
+    assert_eq!(v[2], GerberCommand::Operation(OperationType::Flash));
+  } else {
+    panic!("wrong");
+  }
 }

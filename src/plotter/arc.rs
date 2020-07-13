@@ -33,6 +33,22 @@ fn cmp(a: &f32, b: &f32) -> Ordering {
 }
 
 impl Arc {
+  fn kross(a: Vec2, b: Vec2) -> f32 {
+    a.x * b.y - b.x * a.y
+  }
+
+  pub fn get_radius(&self) -> f32 {
+    (self.from - self.center).magnitude()
+  }
+
+  pub fn is_on_arc(&self, point: &Vec2) -> bool {
+    let kross = Self::kross(point - self.from, self.to - self.from); 
+    match self.direction {
+      CircularDirection::CCW => kross >= 0.0,
+      CircularDirection::CW  => kross <= 0.0
+    }
+  }
+
   fn arc_len(dir: &CircularDirection, center: &Vec2, from: &Vec2, to: &Vec2) -> f32 {
     use CircularDirection::*;
     let normal_in_start_point = (from - center).normalize();
@@ -60,10 +76,6 @@ impl Arc {
     }
   }
 
-  fn kross(a: Vec2, b: Vec2) -> f32 {
-    a.x * b.y - b.x * a.y
-  }
-
   pub fn is_between(&self, v: Vec2) ->bool {
     let kross = Self::kross(v - self.from, self.to - self.from); 
     match self.direction {
@@ -71,7 +83,6 @@ impl Arc {
       CircularDirection::CW  => kross <= 0.0
     }
   }
-
 
   pub fn new_with_fixed_center(to: Vec2, from: Vec2, center: Vec2, direction: CircularDirection)->Self {
     use CircularDirection::*;

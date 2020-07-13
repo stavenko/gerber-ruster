@@ -6,7 +6,7 @@ pub enum AlgebraicPathElement {
   Line(Line)
 }
 
-pub trait Algebraic<T> 
+pub trait Algebraic<T>
 {
   fn algebraic(&self) -> T;
 }
