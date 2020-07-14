@@ -6,14 +6,11 @@ use super::{
   super::{ 
     Path,
     StrokePathElement,
+    tr
   }
 };
 
 use crate::parser::Polarity;
-
-
-
-
 
 pub fn to_stroke_around_path(path: Path) -> Vec<Region> {
   println!("-----------------process path ---------------------");
@@ -28,17 +25,17 @@ pub fn to_stroke_around_path(path: Path) -> Vec<Region> {
     println!("Elem -> {:?}", current);
     let next = elements.get(ix + 1).map(|i| i.as_ref());
     forward.extend(current.forward(&tp, prev, next, is_locked));
-    backward.extend(current.backward(&tp, prev, next, is_locked));
+    backward.extend(current.backward(&tp, prev, next));
   }
   if is_locked {
     let forward = Path::stroke(forward);
     let backward = Path::stroke(backward);
     match compare_path(&forward, &backward) {
-      Ordering::Greater => vec!(Region::new(Polarity::Dark, vec!(forward, backward))),
-      Ordering::Less => vec!(Region::new(Polarity::Dark, vec!(backward, forward))),
+      Ordering::Greater => vec!(Region::new(Polarity::Dark, tr(forward) / tr(backward))),
+      Ordering::Less => vec!(Region::new(Polarity::Dark, tr(backward) / tr(forward))),
       Ordering::Equal => vec!(
-        Region::new(Polarity::Dark, vec!(forward)),
-        Region::new(Polarity::Dark, vec!(backward))
+        Region::new(Polarity::Dark, tr(forward)),
+        Region::new(Polarity::Dark, tr(backward))
         ),
     }
   } else {
@@ -47,6 +44,6 @@ pub fn to_stroke_around_path(path: Path) -> Vec<Region> {
     println!("-------------- end process path ---------------------");
 
     let path = Path::stroke(elements);
-    vec!(Region::new(Polarity::Dark, vec!(path)))
+    vec!(Region::new(Polarity::Dark, tr(path)))
   }
 }

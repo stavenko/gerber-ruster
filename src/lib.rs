@@ -1,8 +1,14 @@
+#![feature(or_patterns)]
 pub mod parser;
 mod plotter;
 mod svg;
 
 pub use svg::SvgComposer;
+pub use parser::GerberReader;
+pub use parser::FormatSpecification;
+pub use plotter::Plotter;
+pub use plotter::Region;
+pub use plotter::IntersectorEnum;
 
 #[cfg(test)]
 mod test {
@@ -86,13 +92,13 @@ mod integration_test {
 
       "real-world/simple",
       "real-world/hard_one",
+    */
     "regions/region-with-arc-cut-in",
     "regions/region-with-arcs",
     "regions/region-with-cut-in-line",
-    */
     "regions/region-with-lines",
-    /*
     "regions/shitty-region-with-lines",
+    /*
     */
     
     )

@@ -352,7 +352,7 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
             element.get_forward_end_point(&path_type)
             );
 
-          if let Some(pt) = line_two.get_intersector().intersects(line_one.get_intersector()) {
+          if let Some(pt) = line_two.get_intersector().intersects(line_one.get_intersector()).pop() {
             forward_start_point = pt;
           }else {
             panic!("Cannot find intersecttion, but we should!");
@@ -378,7 +378,7 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
             element.get_forward_end_point(&path_type)
             );
 
-          if let Some(pt) = line_one.get_intersector().intersects(line_two.get_intersector()) {
+          if let Some(pt) = line_one.get_intersector().intersects(line_two.get_intersector()).pop() {
             forward_end_point = pt;
           }else {
             panic!("Cannot find intersecttion, but we should!");
@@ -388,7 +388,7 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
       }
     }
 
-    if needs_end_cap && !is_path_locked{
+    if needs_start_cap && !is_path_locked{
       for p in self.create_starting_cap(&path_type).into_iter() {
         result.push(p);
       }
@@ -412,7 +412,6 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
     path_type: &PathType, 
     prev: Option<&dyn StrokePathElement>, 
     next: Option<&dyn StrokePathElement>, 
-    is_path_locked: bool
   ) -> Vec<Box<dyn StrokePathElement>> {
     let mut result: Vec<Box<dyn StrokePathElement>> = Vec::new();
     let mut backward_start_point = self.get_backward_start_point(&path_type);
@@ -434,7 +433,7 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
           );
 
 
-          if let Some(pt) = line_one.get_intersector().intersects(line_two.get_intersector()) {
+          if let Some(pt) = line_one.get_intersector().intersects(line_two.get_intersector()).pop() {
             backward_end_point = pt;
           }else {
             panic!("Cannot find intersecttion, but we should!");
@@ -457,7 +456,7 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
             element.get_backward_end_point(&path_type)
           );
 
-          if let Some(pt) = line_two.get_intersector().intersects(line_one.get_intersector()){
+          if let Some(pt) = line_two.get_intersector().intersects(line_one.get_intersector()).pop() {
             backward_start_point = pt;
           }else {
             panic!("Cannot find intersecttion, but we should!");

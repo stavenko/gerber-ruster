@@ -15,11 +15,15 @@ pub struct Line {
 
 impl Line {
   pub fn is_on_segment(&self, point: &Vec2) -> bool {
+
     let related = point - self.from;
     let dir = self.to - self.from;
     let angle = Rotation2::rotation_between(&dir, &related).angle();
-    let projection = dir.dot(&related) / dir.magnitude();
+    let length = dir.magnitude();
+    let dir = dir.normalize();
+    let projection = dir.dot(&related) / length;
     angle.abs() <= f32::EPSILON  && projection >= 0.0 && projection <= 1.0 
+
   }
 
   pub fn new(to: Vec2, from: Vec2) -> Self{
@@ -64,4 +68,23 @@ impl Intersects for Line {
   fn get_intersector(&self) -> IntersectorEnum {
     IntersectorEnum::Segment(Segment::new(self.from, self.to))
   }
+}
+
+
+#[test]
+fn is_on_segment() {
+  let line = Line::new(Vec2::new(5.0, 0.0), Vec2::new(0.0, 0.0)); 
+  assert_eq!(line.is_on_segment(&Vec2::new(2.5,0.0)), true);
+}
+
+#[test]
+fn is_on_segment_2() {
+  let line = Line::new(Vec2::new(5.0, 5.0), Vec2::new(0.0, 0.0)); 
+  assert_eq!(line.is_on_segment(&Vec2::new(2.5, 2.5)), true);
+}
+
+#[test]
+fn is_on_segment_fail() {
+  let line = Line::new(Vec2::new(5.0, 5.0), Vec2::new(0.0, 0.0)); 
+  assert_eq!(line.is_on_segment(&Vec2::new(2.5, 1.5)), false);
 }

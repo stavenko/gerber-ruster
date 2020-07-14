@@ -43,7 +43,11 @@ impl Arc {
 
   pub fn is_on_arc(&self, point: &Vec2) -> bool {
     let kross = Self::kross(point - self.from, self.to - self.from); 
-    match self.direction {
+    let radius = self.get_radius();
+    let distance_from_center = (point - self.center).magnitude();
+    let measure = radius - distance_from_center;
+    
+    measure.abs() <= f32::EPSILON && match self.direction {
       CircularDirection::CCW => kross >= 0.0,
       CircularDirection::CW  => kross <= 0.0
     }
@@ -51,26 +55,34 @@ impl Arc {
 
   fn arc_len(dir: &CircularDirection, center: &Vec2, from: &Vec2, to: &Vec2) -> f32 {
     use CircularDirection::*;
-    let normal_in_start_point = (from - center).normalize();
-    let normal_in_end_point = (to - center).normalize();
-    let angle_length = Rotation2::rotation_between(
-      &normal_in_start_point,
-      &normal_in_end_point
-    ).angle();
 
-    match dir{
-      CCW => {
-        if angle_length < 0.0 {
-          2.0 * PI + angle_length
-        } else {
-          angle_length
-        }
-      },
-      CW => {
-        if angle_length < 0.0 {
-          angle_length.abs()
-        } else {
-          2.0 * PI - angle_length
+    let distance_from_to = (from - to).magnitude();
+    if distance_from_to <= f32::EPSILON {
+      2.0 * PI
+    } else {
+      let normal_in_start_point = (from - center).normalize();
+      let normal_in_end_point = (to - center).normalize();
+      let angle_length = Rotation2::rotation_between(
+        &normal_in_start_point,
+        &normal_in_end_point
+      ).angle();
+      println!("angle_length {}, {:?}", angle_length, dir);
+      // panic!("BBBBBBBBBBBBBBBBBBBB");
+
+      match dir{
+        CCW => {
+          if angle_length < 0.0 {
+            2.0 * PI + angle_length
+          } else {
+            angle_length
+          }
+        },
+        CW => {
+          if angle_length < 0.0 {
+            angle_length.abs()
+          } else {
+            2.0 * PI - angle_length
+          }
         }
       }
     }
@@ -101,6 +113,8 @@ impl Arc {
     let angle_end = normal_in_end_point.y.atan2(normal_in_end_point.x);
 
     let angle_length = Self::arc_len(&direction, &center, &from, &to);
+
+    
 
     Arc {
       to, 

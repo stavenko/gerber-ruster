@@ -25,9 +25,12 @@ impl Serializable for Arc {
   }
   fn serialize(&self) -> String {
     use CircularDirection::*;
-    let Arc{to, direction, center, angle_length, ..} = self;
+    let Arc{mut to, direction, center, angle_length, direction_in_end_point, ..} = self;
     let radius = (to - center).magnitude();
     let is_large = *angle_length > PI;
+    if angle_length - 2.0 * PI <= f32::EPSILON {
+      to += -direction_in_end_point * 1e-7;
+    }
 
     format!("A {} {} {} {} {} {} {}", 
             radius, 

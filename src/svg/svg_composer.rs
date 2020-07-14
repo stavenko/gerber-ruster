@@ -1,4 +1,4 @@
-use crate::plotter::{ Path, Region, AlgebraicPathElement };
+use crate::plotter::{ Tree, Path, Region, AlgebraicPathElement };
 use crate::parser::{ Unit, Polarity };
 use super::bounding_box::*;
 use super::serializable::*;
@@ -26,9 +26,45 @@ pub struct SvgComposer {
 }
 
 impl SvgComposer {
-  fn region_to_svg_paths(region: Region) -> Vec<SvgPath> {
-    let mut polarity = region.starting_polirity;
 
+  fn region_to_svg_paths(starting_polirity: Polarity, region: Tree<Path>) -> Vec<SvgPath> {
+    let mut result: Vec<SvgPath> = Vec::new();
+    let Path{ elements, ..} = &region.data;
+    result.push(
+      SvgPath {
+        polarity: starting_polirity.clone(),
+        elements: elements.iter()
+          .map(|item| SvgElement::new(item.algebraic()))
+          .collect()
+      });
+
+    let others = region.into_iter().map(|child| Self::region_to_svg_paths(starting_polirity.switch(), *child)).flatten().collect::<Vec<_>>();
+    result.extend(others);
+    result
+      
+
+    /*
+    for child in region.into_iter() {
+      result.push(
+        SvgPath {
+          polarity: starting_polirity.clone(),
+          elements: elements.iter()
+            .map(|item| SvgElement::new(item.algebraic()))
+            .collect()
+        });
+
+      let mut new_paths = Self::region_to_svg_paths(starting_polirity.switch(), *child);
+      result.append(&mut new_paths);
+    }
+    result
+
+    */
+
+    // let mut polarity = region.starting_polirity;
+
+
+    
+    /*
     region.paths.into_iter().map(|path| {
       let svg_path: Vec<SvgElement> = path.elements.into_iter().map(|item| {
         SvgElement::new(item.algebraic())
@@ -39,11 +75,14 @@ impl SvgComposer {
         elements: svg_path
       }
     }).collect()
+    */
   }
   pub fn new (regions: Vec<Region>, unit: Unit) -> Self {
     println!("REGs: {}", regions.len());
     let paths = regions.into_iter()
-      .map(|r| Self::region_to_svg_paths(r))
+      .map(|r|  {
+        Self::region_to_svg_paths(r.starting_polirity, r.paths)
+      })
       .flatten()
       .collect::<Vec<SvgPath>>();
 
@@ -104,8 +143,12 @@ impl SvgComposer {
     let mut items: Vec<String> = svg_path.elements.iter().map(|p| p.0.serialize()).collect();
     items.insert(0, svg_path.elements.first().unwrap().0.initial());
 
+    let color = match svg_path.polarity {
+      Polarity::Dark => "black",
+      Polarity::Clear => "yellow"
+    };
 
-    format!("<path d=\"{}\" fill=\"black\" stroke=\"red\" stroke-width=\"0.02\" transform=\"{}\"/>", items.join(" "), matrix)
+    format!("<path d=\"{}\" fill=\"{}\" stroke=\"red\" stroke-width=\"0.02\" transform=\"{}\"/>", items.join(" "), color, matrix)
   }
 }
 

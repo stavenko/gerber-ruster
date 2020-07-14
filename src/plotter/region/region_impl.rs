@@ -1,10 +1,11 @@
 use super::super::{ PathType, Path };
 use crate::parser::Polarity;
 use super::{ split_region_paths, to_stroke_around_path };
+use super::super::Tree;
 
 pub struct Region {
   pub starting_polirity: Polarity,
-  pub paths: Vec<Path>
+  pub paths: Tree<Path>
 }
 
 impl Region {
@@ -16,7 +17,7 @@ impl Region {
     }
   }
 
-  pub fn new(starting_polirity: Polarity, paths: Vec<Path>) -> Self {
+  pub fn new(starting_polirity: Polarity, paths: Tree<Path>) -> Self {
     Region {
       starting_polirity, 
       paths

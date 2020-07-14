@@ -109,13 +109,11 @@ pub enum Polarity {
 
 
 impl Polarity {
-  pub fn switch(&mut self) -> Self {
-    let old = self.clone();
-    *self = match self {
+  pub fn switch(&self) -> Self {
+    match self {
       Polarity::Clear => Polarity::Dark,
       Polarity::Dark => Polarity::Clear
-    };
-    old
+    }
   }
 }
 

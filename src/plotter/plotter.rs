@@ -118,6 +118,7 @@ pub struct Plotter {
   unit: Option<Unit>,
   format: Option<FormatSpecification>,
   tools: HashMap<String, ApertureTemplatePrimitive>,
+  previously_used_radial_interpolation: Option<Interpolation>,
   interpolation: Option<Interpolation>,
   circular_direction: Option<CircularDirection>,
   selected_aperture: Option<SelectedTool>,
@@ -129,6 +130,7 @@ pub struct Plotter {
 impl Plotter {
   pub fn new() -> Self {
     Plotter {
+      previously_used_radial_interpolation: None,
       interpolation: None,
       circular_direction: None,
       selected_aperture: None,
@@ -153,6 +155,11 @@ impl Plotter {
 
   fn set_circular_direction(&mut self, dir: CircularDirection) {
     self.circular_direction.replace(dir);
+    if let Some(Interpolation::Linear) = self.interpolation {
+      if let Some(r) = self.previously_used_radial_interpolation.take() {
+      self.interpolation.replace(r); 
+      }
+    }
   }
 
   fn add_aperture(&mut self, a: Aperture) {
@@ -192,7 +199,17 @@ impl Plotter {
   }
 
   fn set_interpolation(&mut self, i: Interpolation) {
-    self.interpolation.replace(i);
+    match i {
+      Interpolation::Linear => {
+        match self.interpolation.replace(i) { 
+          Some(int@(Interpolation::MultiQuadrant | Interpolation::SingleQuadrant)) => {
+            self.previously_used_radial_interpolation.replace(int);
+          }
+          _ => ()
+        };
+      },
+      int => { self.interpolation.replace(int); }
+    }
   }
 
   fn set_coordinate(&mut self, coord: Coordinate, value: String) {
