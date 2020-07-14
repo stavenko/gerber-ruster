@@ -223,7 +223,7 @@ impl Plotter {
 
 
   pub fn consume(&mut self, command: GerberCommand) {
-    println!("cmd: {:?}", command);
+    // println!("cmd: {:?}", command);
     match command {
       GerberCommand::StartContourMode => self.start_contour(),
       GerberCommand::FinishConrourMode => self.finish_contour(),
@@ -272,7 +272,7 @@ impl Plotter {
     let x = self.coords_accumulator.remove(&Coordinate::X);
     let y = self.coords_accumulator.remove(&Coordinate::Y);
 
-    println!("start path {:?}, {:?}", x, y);
+    // println!("start path {:?}, {:?}", x, y);
     let ap = self.selected_aperture.as_ref();
     match ap {
       Some(_) => {

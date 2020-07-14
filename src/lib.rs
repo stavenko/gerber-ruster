@@ -112,6 +112,7 @@ mod integration_test {
 
     for file in files_list().into_iter().map(String::from) {
       let grb = grb_path.join(format!("{}.gbr", file));
+      println!("processing {}", grb.to_str().unwrap());
       match File::open(&grb) {
         Ok(grb_file) =>  { 
           let file_content ={ 

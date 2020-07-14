@@ -24,7 +24,7 @@ fn is_end_or_start_of_segment(element: &Box<dyn StrokePathElement>, point: &Vec2
   let point = Point2::new(point.x, point.y);
   let d1 = na::distance(&element.get_end_point().into(), &point);
   let d2 = na::distance(&element.get_start_point().into(), &point);
-  println!("ddd {}  {}", d1, d2);
+  // // println!("ddd {}  {}", d1, d2);
 
 
   d1 <= f32::EPSILON || d2 <= f32::EPSILON
@@ -42,11 +42,13 @@ fn find_intersection_and_elements(path: &Path) -> Option<(Vec<usize>, Vec2)> {
     if let Some(element) = path.elements.get(i) {
       for j in i+2..path.elements.len() {
         if let Some(possible_candidate) = path.elements.get(j) {
+          println!(" inter {:?}", element.get_intersector().intersects(possible_candidate.get_intersector()));
           if let Some(intersection) = element.get_intersector().intersects(possible_candidate.get_intersector()).pop() {
             let end_start = (
               is_end_or_start_of_segment(&element, &intersection),
               is_end_or_start_of_segment(&possible_candidate, &intersection),
             );
+            println!("end_start {:?}", end_start);
             let indexes = match end_start {
               (false, false) => vec!(i, j),
               (false, true) => vec!(i),
@@ -131,7 +133,7 @@ fn is_fully_locked(path: &Path) -> bool {
   for (k, v) in map {
     if v != 2 {
       result = false;
-      println!("some spot appeared not twice {}, {}",k, v);
+      // println!("some spot appeared not twice {}, {}",k, v);
       break;
     }
   }
@@ -211,15 +213,15 @@ fn find_element_with_start<'a>(path: &'a Path, point: &'a Vec2) -> Option<usize>
 
 fn cutout_from_element(mut consumed_path: Path, element_index: usize) -> (Option<Path>, Option<Path>) {
 
-  println!("cutout from element {}", element_index);
+  // println!("cutout from element {}", element_index);
 
   let mut new_path = Path::stroke(Vec::new());
   let mut next_start_point = consumed_path.elements[element_index].get_end_point();
-  println!("first_start_poing {}", next_start_point);
+  // println!("first_start_poing {}", next_start_point);
 
   while let Some(element_index) = find_element_with_start(&consumed_path, &next_start_point) {
     let el = consumed_path.elements.remove(element_index);
-    println!("cutting lille-by-lil {} ({})", element_index, format_element(&el));
+    // println!("cutting lille-by-lil {} ({})", element_index, format_element(&el));
     new_path.elements.push(el);
 
     if new_path.is_locked() {
@@ -265,7 +267,7 @@ fn get_first_found_locked_contour_wrong(path: Path) -> (Path, Option<Path>) {
       let final_element = &path.elements[final_element_index];
       let first_element = &path.elements[first_element_index];
       let distance = final_element.get_end_point() - first_element.get_start_point();
-      println!("{} =>>>> {} ({})", format_element(first_element), format_element(final_element), distance.magnitude());
+      // println!("{} =>>>> {} ({})", format_element(first_element), format_element(final_element), distance.magnitude());
 
       if distance.magnitude() < std::f32::EPSILON {
         indexes = Some((first_element_index, final_element_index));
@@ -291,7 +293,7 @@ fn get_first_found_locked_contour_wrong(path: Path) -> (Path, Option<Path>) {
         AlgebraicPathElement::Line(_) => "L".into()
       };
       */
-      println!("{}: {} ", ix, format_element(&element));
+      // println!("{}: {} ", ix, format_element(&element));
 
       if ix >= from && ix <= to {
         selected_elements.push(element)
@@ -300,13 +302,13 @@ fn get_first_found_locked_contour_wrong(path: Path) -> (Path, Option<Path>) {
       }
     }
 
-    println!("found some {}, {}", original_elements.len(), selected_elements.len());
+    // println!("found some {}, {}", original_elements.len(), selected_elements.len());
     (
       Path::stroke(original_elements),
       Some(Path::stroke(selected_elements))
     )
   } else {
-    println!("not found any");
+    // println!("not found any");
     (path, None)
   }
 }
@@ -347,18 +349,18 @@ fn remove_unlocked_and_zero_square_conturs(paths: Vec<Path>) -> Vec<Path> {
 
 fn is_element_has_point_within_path(element: &dyn StrokePathElement, path: &Path) -> bool {
   let is_start_on_path = path.elements.iter().filter(|el| {
-    println!("check if point {} {} in path", element.get_start_point().x, element.get_end_point().y);
+    // println!("check if point {} {} in path", element.get_start_point().x, element.get_end_point().y);
     el.has_point(&element.get_start_point())
   }).count() != 0;
   let is_end_point_on_path = path.elements.iter().filter(|el| {
     el.has_point(&element.get_end_point())
   }).count() != 0;
-  println!("is start-end-on : {}   {},",is_start_on_path, is_end_point_on_path);
+  // println!("is start-end-on : {}   {},",is_start_on_path, is_end_point_on_path);
 
   if is_start_on_path && is_end_point_on_path {
-    print!("el start {}, {} ", element.get_start_point().x, element.get_start_point().y);
-    print!("el end {}, {} \n", element.get_end_point().x, element.get_end_point().y);
-    println!("el center {}, {}", element.get_central_point().x, element.get_central_point().y);
+    //print!("el start {}, {} ", element.get_start_point().x, element.get_start_point().y);
+    //print!("el end {}, {} \n", element.get_end_point().x, element.get_end_point().y);
+    // println!("el center {}, {}", element.get_central_point().x, element.get_central_point().y);
     path.is_point_inside(&element.get_central_point())
   } else if is_start_on_path {
     path.is_point_inside(&element.get_end_point())
@@ -366,41 +368,41 @@ fn is_element_has_point_within_path(element: &dyn StrokePathElement, path: &Path
 
     let s = element.get_start_point();
     let ipi = path.is_point_inside(&element.get_start_point());
-    println!("is points inside: {} {}  {},",s.x, s.y, ipi);
+    // println!("is points inside: {} {}  {},",s.x, s.y, ipi);
     ipi
   }
   
 }
 
 pub fn compare_path(path1: &Path, path2: &Path) -> Ordering {
-  println!("-----------------------*******************-------------------------");
+  //println!("-----------------------*******************-------------------------");
   for el in path1.elements.iter() {
-    println!("path1 > {}", format_element(&el))
+    //println!("path1 > {}", format_element(&el))
   }
   for el in path2.elements.iter() {
-    println!("path2 > {}", format_element(&el))
+    //println!("path2 > {}", format_element(&el))
   }
-  println!("compare_path1  with {} els with path2 with {} elements", 
-           path1.elements.len(), path2.elements.len());
+  //println!("compare_path1  with {} els with path2 with {} elements", 
+           //path1.elements.len(), path2.elements.len());
   let is_path1_within_path2 = path1.elements.iter()
     .filter(|el| is_element_has_point_within_path(el.as_ref(), path2))
     .count() > 0;
-  println!("======      is path1 within path2  {} ========", is_path1_within_path2);
+  ////println!("======      is path1 within path2  {} ========", is_path1_within_path2);
   let is_path2_within_path1 = path2.elements.iter()
     .filter(|el| is_element_has_point_within_path(el.as_ref(), path1))
     .count() > 0;
-  println!("======      is path2 within path1  {} ========", is_path2_within_path1);
+  //println!("======      is path2 within path1  {} ========", is_path2_within_path1);
     
 
 
   if is_path1_within_path2 {
-    println!("path 1 within path 2");
+    //println!("path 1 within path 2");
     Ordering::Less
   } else if is_path2_within_path1 {
-    println!("path 2 within path 1");
+    //println!("path 2 within path 1");
     Ordering::Greater
   } else {
-    println!("Eq");
+    //println!("Eq");
     Ordering::Equal
   }
 }
@@ -430,112 +432,56 @@ fn attach_leafs(forest: &mut Forest<Path>, mut paths: Vec<Path>) -> Vec<Path> {
 }
 
 
-pub fn compose_regions(paths: Vec<Path>) -> Vec<Region> {
-  // println!("compose {} paths", paths.len());
-  let (some_top_node_ix, some_top_node) = paths.iter().enumerate()
-    .max_by(|(_,p), (_,y)| compare_path(&p, &y)).unwrap();
-  let mut equal_nodes = paths.iter()
-    .enumerate()
-    .filter(|(_, n)| compare_path(&some_top_node, n) == Ordering::Equal)
-    .map(|(ix, _)| ix)
-    .collect::<Vec<_>>();
-  equal_nodes.push(some_top_node_ix);
-  let (top_nodes, other_nodes): (Vec<_>, Vec<_>) = paths.into_iter()
-    .enumerate()
-    .partition(|(ix, _path)| equal_nodes.contains(ix));
-  let mut forest: Forest<Path> = Vec::new();
-  for top_node in top_nodes.into_iter().map(|(_, el)| el) {
-    forest.push(Box::new(Tree::new(top_node)))
-  }
+pub fn compose_regions(mut paths: Vec<Path>) -> Vec<Region> {
+  println!("paths len: {}", paths.len());
 
-  println!("forest >>> {}", forest.len());
-
-  let mut other_nodes: Vec<Path> = other_nodes.into_iter().map(|(_, el)| el).collect();
-  let mut ___handle = other_nodes.len();
-
-  println!("==================--------------=========================");
-
-  while !other_nodes.is_empty() {
-    println!("Take from other nodes {}", other_nodes.len());
-    other_nodes = attach_leafs(&mut forest, other_nodes);
-    if other_nodes.len() == ___handle {
-      panic!("adfasdf");
-    }
-  }
-
-  // println!("forest {}", forest.node_count());
-
-  // while let Some(tree) = forest.pop_back() {
-    // println!("adfadfa");
-  // }
-
-  forest.into_iter().map(|tr| {
-    Region::new(Polarity::Dark, *tr)
-  }).collect::<Vec<Region>>()
-
-  // println!("regs_copied {}", regions.len());
-
-  // Vec::new()
-
-  /*
-  while !paths.is_empty() {
-
-    let mut amount_found = 0;
-    if let Some((ix, _)) = paths.iter()
+  if paths.len() == 1 {
+    vec!(Region::new(Polarity::Dark, Tree::new(paths.pop().unwrap())))
+  } else {
+    let (some_top_node_ix, some_top_node) = paths.iter().enumerate()
+      .max_by(|(_,p), (_,y)| compare_path(&p, &y)).unwrap();
+    let mut equal_nodes = paths.iter()
       .enumerate()
-      .find(|(_, path)| match compare_path(path, region.first().unwrap()) {
-        Ordering::Greater => true,
-        _ => false
-      }) {
-      amount_found +=1;
-      region.insert(0, paths.remove(ix));
-    }
-
-    if let Some((ix, _)) = paths.iter()
+      .filter(|(_, n)| compare_path(&some_top_node, n) == Ordering::Equal)
+      .map(|(ix, _)| ix)
+      .collect::<Vec<_>>();
+    equal_nodes.push(some_top_node_ix);
+    let (top_nodes, other_nodes): (Vec<_>, Vec<_>) = paths.into_iter()
       .enumerate()
-      .find(|(_, path)| match compare_path(path, region.last().unwrap()) {
-        Ordering::Less => true,
-        _ => false
-      }) {
-      amount_found +=1;
-      region.push(paths.remove(ix));
+      .partition(|(ix, _path)| equal_nodes.contains(ix));
+    let mut forest: Forest<Path> = Vec::new();
+    for top_node in top_nodes.into_iter().map(|(_, el)| el) {
+      forest.push(Box::new(Tree::new(top_node)))
     }
 
-    if !paths.is_empty() && amount_found == 0 {
-      if let Some((ix, _)) = paths.iter()
-        // region.insert(0, paths.remove(ix));
-        .enumerate()
-        .find(|(_, path)| match compare_path(path, region.first().unwrap()) {
-          Ordering::Equal => true,
-          _ => false
-        }) {
-        indedendent_regions.push(region);
-        region = vec!(paths.remove(ix));
+    let mut other_nodes: Vec<Path> = other_nodes.into_iter().map(|(_, el)| el).collect();
+    let mut ___handle = other_nodes.len();
+
+
+    while !other_nodes.is_empty() {
+      other_nodes = attach_leafs(&mut forest, other_nodes);
+      if other_nodes.len() == ___handle {
+        panic!("adfasdf");
       }
     }
-  }
-    
-  if !region.is_empty() {
-    indedendent_regions.push(region);
+
+    forest.into_iter().map(|tr| {
+      Region::new(Polarity::Dark, *tr)
+    }).collect::<Vec<Region>>()
   }
 
-  indedendent_regions.into_iter()
-    .map(|paths| Region::new(Polarity::Dark, paths))
-    .collect()
-
-  */
 }
 
 pub fn split_region_paths(path: Path) -> Vec<Region> {
   let splitted_path = split_all_primitives_by_intersections(path);
   let contours = split_by_locked_countours(splitted_path);
+  for c in &contours {
+    println!("\ncontour {:?}\n", c);
+  }
   let contours = remove_unlocked_and_zero_square_conturs(contours);
-  // for c in &contours {
-    // println!("\ncontour {:?}\n", c);
-  // }
 
   let regs = compose_regions(contours);
-  println!("Regs are good");
+  //println!("Regs are good");
 
   regs
 

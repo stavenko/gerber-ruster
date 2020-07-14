@@ -140,7 +140,7 @@ impl IntersectorEnum {
       LinearIntersectResult::SameLines => Vec::new(),
       LinearIntersectResult::ParallelLines => Vec::new(),
       LinearIntersectResult::Parameters(s, t) => {
-        if s > 0.0 && s < 1.0 && t > 0.0 && t < 1.0 {
+        if s >= 0.0 && s <= 1.0 && t >= 0.0 && t <= 1.0 {
           vec!(main.spot(s))
         } else {
           Vec::new()
@@ -169,7 +169,7 @@ impl IntersectorEnum {
 
     let distance = other.origin - left.origin;
     let basis = left.dir.normalize(); 
-    println!("basis: {} {}", basis.x, basis.y);
+    // println!("basis: {} {}", basis.x, basis.y);
     let projection = other.dir.dot(&basis);
     let distance_projection = distance.dot(&basis);
 
@@ -177,11 +177,11 @@ impl IntersectorEnum {
     let ortho_projection = other.dir - projection * basis;
     let ortho_distance_projection = distance - distance_projection * basis;
 
-    println!("projection: distance {}", distance);
-    println!("projection: dir {}  pos {}", ortho_projection, ortho_distance_projection);
+    // println!("projection: distance {}", distance);
+    // println!("projection: dir {}  pos {}", ortho_projection, ortho_distance_projection);
 
     let sign = -ortho_projection.dot(&ortho_distance_projection).signum();
-    println!("sign {}", ortho_projection.dot(&ortho_distance_projection));
+    // println!("sign {}", ortho_projection.dot(&ortho_distance_projection));
     sign * ortho_distance_projection.magnitude() / ortho_projection.magnitude()
   }
 
@@ -294,7 +294,7 @@ impl IntersectorEnum {
     let mut result = Vec::new();
 
     let descr = b.powi(2) - 4.0 * a * c;
-    println!("descr {}", descr);
+    // println!("descr {}", descr);
     if descr.abs() <= f32::EPSILON {
       result.push(left.origin + left.dir * (-b / (2.0 * a)))
     } else {
@@ -369,13 +369,13 @@ mod tests {
   fn linear_components_intersect_dang() {
     let ray1= Ray::new(Vec2::new(12.2, 25.7), Vec2::new(0.4288417,0.9033797));
     let ray2= Segment::new(Vec2::new(12.5, 26.0), Vec2::new(12.9, 26.0)).make_ray();
-    println!("RAy 1 {:?}", ray1);
-    println!("RAy 2 {:?}", ray2);
+    // println!("RAy 1 {:?}", ray1);
+    // println!("RAy 2 {:?}", ray2);
 
 
     match IntersectorEnum::linear_components(&ray1, &ray2) {
       LinearIntersectResult::Parameters(s, t) => {
-        println!("adfasdff {} {}", s, t);
+        // // println!("adfasdff {} {}", s, t);
         assert_eq!(ray1.spot(s), ray2.spot(t))
       },
       _ => unreachable!()

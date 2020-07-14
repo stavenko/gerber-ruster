@@ -66,7 +66,7 @@ impl Arc {
         &normal_in_start_point,
         &normal_in_end_point
       ).angle();
-      println!("angle_length {}, {:?}", angle_length, dir);
+      // println!("angle_length {}, {:?}", angle_length, dir);
       // panic!("BBBBBBBBBBBBBBBBBBBB");
 
       match dir{
@@ -150,11 +150,9 @@ impl Arc {
         from + Vec2::new(-cx, -cy)
         ).into_iter()
         .filter(|center| (to-center).magnitude() - (from-center).magnitude() <= f32::EPSILON)
-        .inspect(|x| println!("inspect {:?} {:?}", (to-x).magnitude(), (from-x).magnitude()))
         .min_by(|c1, c2| {
           let arc_len1 = Arc::arc_len(&direction, &c1, &from, &to);
           let arc_len2 = Arc::arc_len(&direction, &c2, &from, &to);
-          println!("\n\nc1 {:?}\n c2 {}\n a1: {}\n a2: {}\n", c1, c2, arc_len1, arc_len2);
           cmp(&arc_len1, &arc_len2)
       }).unwrap()
     } else {
@@ -163,7 +161,6 @@ impl Arc {
       Vec2::new(cx, cy)
     };
 
-    println!("\n\ncenter {:?}\n\ni: {:?}\n\nj: {:?}\n\n", center, i, j);
 
     Arc::new_with_fixed_center(to, from, center, direction )
 

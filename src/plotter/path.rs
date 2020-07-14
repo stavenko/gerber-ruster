@@ -58,16 +58,16 @@ impl Path {
     */
 
     let ray = Ray::new(*point, point.normalize());
-    println!("testing ray {}, {}", ray.origin, ray.dir);
+    // println!("testing ray {}, {}", ray.origin, ray.dir);
     let ray = IntersectorEnum::Ray(ray);
     let mut intersects: Vec<Vec2> = self.elements.iter()
       .enumerate()
       .map(|(ix, el)| { 
         let r_int = el.get_intersector();
-         println!("WTF!!! {:?}", r_int);
+         // println!("WTF!!! {:?}", r_int);
         let result = ray.intersects(el.get_intersector());
         if !result.is_empty() {
-          println!("element {} is around result {}", ix, result[0]);
+          // println!("element {} is around result {}", ix, result[0]);
         }
         result
 
@@ -75,7 +75,7 @@ impl Path {
 
       .flatten()
       .collect();
-     println!("found intersects {:?}", intersects);
+     // println!("found intersects {:?}", intersects);
     intersects.sort_unstable_by(|a, b| {
         let c = a - b;
         let magn = c.magnitude();
@@ -95,7 +95,7 @@ impl Path {
 
     let count = intersects.len();
 
-    println!("is_point_inside me {}>>>> {}; {}  (count: {})", self.elements.len(), point.x, point.y, count);
+    // println!("is_point_inside me {}>>>> {}; {}  (count: {})", self.elements.len(), point.x, point.y, count);
 
     count % 2 != 0
     
