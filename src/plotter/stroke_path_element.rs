@@ -404,6 +404,8 @@ pub trait StrokePathElement: Algebraic<AlgebraicPathElement> + PathElement + Int
       result.extend(self.create_ending_cap(&path_type));
     }
 
+    println!("forward {:?}", result);
+
     result
   }
 

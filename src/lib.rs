@@ -57,7 +57,9 @@ mod integration_test {
   fn files_list() -> Vec<&'static str> { 
     vec! (
       /*
+    */
     "smokes/one-1",
+    /*
     "smokes/one",
     "smokes/two",
     "smokes/three",
@@ -92,13 +94,11 @@ mod integration_test {
 
       "real-world/simple",
       "real-world/hard_one",
-    */
     "regions/region-with-arc-cut-in",
     "regions/region-with-arcs",
     "regions/region-with-cut-in-line",
     "regions/region-with-lines",
     "regions/shitty-region-with-lines",
-    /*
     */
     
     )
